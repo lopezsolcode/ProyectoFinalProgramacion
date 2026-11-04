@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # TP6Programacion
 
 Aplicación de gestión y venta de productos desarrollada como trabajo práctico. Incluye un panel web para la administración y las ventas presenciales, una aplicación móvil para las compras online y una API compartida.
