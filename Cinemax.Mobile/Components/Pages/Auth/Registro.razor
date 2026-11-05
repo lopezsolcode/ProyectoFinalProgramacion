@@ -1,0 +1,168 @@
+@page "/registro"
+@layout AutenticacionLayout
+@using Cinemax.Shared.DTO.Auth.Request
+@using Cinemax.Shared.ViewModels.Auth
+@using Cinemax.Mobile.Services
+@inject AutenticacionService AutenticacionService
+@inject NavigationManager Navigation
+@inject EstadoAutenticacionProvider EstadoAutenticacion
+
+<PageTitle>Registrarse</PageTitle>
+
+<MudStack Spacing="6">
+    <MudText Typo="Typo.h5" HtmlTag="h1" Align="Align.Center">
+        Registrarse
+    </MudText>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Error">
+            @_error
+        </MudAlert>
+    }
+
+    <MudForm @ref="_formulario"
+             Model="_modelo"
+             Disabled="_procesando"
+             OnEnterPressed="Registrarse">
+        <MudStack Spacing="4">
+            <MudTextField T="string"
+                          @bind-Value="_modelo.Usuario"
+                          Label="Usuario"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Ingresá tu usuario."
+                          MaxLength="30" />
+
+            <MudTextField T="string"
+                          @bind-Value="_modelo.Contrasena"
+                          Label="Contraseña"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Ingresá tu contraseña."
+                          InputType="InputType.Password" />
+
+            <MudTextField T="string"
+                          @bind-Value="_modelo.Email"
+                          Label="E-mail"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Ingresá tu e-mail."
+                          InputType="InputType.Email"
+                          MaxLength="320" />
+
+            <MudTextField T="string"
+                          @bind-Value="_nombre"
+                          Label="Nombre y apellido"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Ingresá tu nombre y apellido." />
+
+            <MudTextField T="string"
+                          @bind-Value="_dni"
+                          Label="DNI"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Ingresá tu DNI." />
+
+            <MudTextField T="string"
+                          @bind-Value="_telefono"
+                          Label="Teléfono"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Ingresá tu teléfono." />
+
+            <MudTextField T="string"
+                          @bind-Value="_direccion"
+                          Label="Dirección"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Ingresá tu dirección." />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Disabled="_procesando"
+                       OnClick="Registrarse">
+                @(_procesando ? "Creando cuenta..." : "Crear cuenta")
+            </MudButton>
+        </MudStack>
+    </MudForm>
+
+    <MudButton Href="/login" FullWidth="true" Disabled="_procesando">
+        Volver al inicio de sesión
+    </MudButton>
+    <MudButton Href="/catalogo"
+               Variant="Variant.Outlined"
+               Color="Color.Secondary"
+               FullWidth="true">
+        Explorar catálogo sin iniciar sesión
+    </MudButton>
+</MudStack>
+
+@code {
+    private readonly RegistroViewModel _modelo = new RegistroViewModel();
+    private MudForm _formulario = null!;
+    private bool _procesando;
+    private string? _error;
+    private string _nombre = string.Empty;
+    private string _dni = string.Empty;
+    private string _telefono = string.Empty;
+    private string _direccion = string.Empty;
+
+    private async Task Registrarse()
+    {
+        if (_procesando)
+        {
+            return;
+        }
+
+        _procesando = true;
+        _error = null;
+
+        try
+        {
+            await _formulario.ValidateAsync();
+
+            if (!_formulario.IsValid)
+            {
+                return;
+            }
+
+            RegisterRequest request = new RegisterRequest(
+                _modelo.Usuario,
+                _modelo.Contrasena,
+                _modelo.Email,
+                _nombre,
+                _dni,
+                _telefono,
+                _direccion);
+
+            await AutenticacionService.Registrarse(request);
+            await EstadoAutenticacion.Actualizar();
+
+            _modelo.Contrasena = string.Empty;
+
+            Navigation.NavigateTo("/");
+        }
+        catch (InvalidOperationException e)
+        {
+            _error = e.Message;
+        }
+        catch (HttpRequestException e)
+        {
+            if (e.StatusCode is null)
+            {
+                _error = "No se pudo conectar con el servidor.";
+            }
+            else
+            {
+                _error = "No se pudo completar la solicitud de registro.";
+            }
+        }
+        finally
+        {
+            _procesando = false;
+        }
+    }
+}

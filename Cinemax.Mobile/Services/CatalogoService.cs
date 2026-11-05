@@ -1,0 +1,126 @@
+
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Json;
+using Cinemax.Shared.DTO.Categoria.Response;
+using Cinemax.Shared.DTO.Paginado.Request.Producto;
+using Cinemax.Shared.DTO.Paginado.Response;
+using Cinemax.Shared.DTO.Producto.Response;
+
+namespace Cinemax.Mobile.Services;
+
+public class CatalogoService
+{
+    private readonly HttpClient _httpClient;
+    private readonly AutenticacionService _autenticacionService;
+
+    public CatalogoService(HttpClient httpClient, AutenticacionService autenticacionService)
+    {
+        _httpClient = httpClient;
+        _autenticacionService = autenticacionService;
+    }
+
+    public async Task<PaginadoResponseDto<ProductoCatalogoResponse>>
+        ObtenerCatalogo(ParametroPaginacionProductoRequest parametros)
+    {
+        var filtros = new Dictionary<string, string>
+        {
+            ["NumeroPagina"] = (parametros.NumeroPagina ?? 1)
+                .ToString(CultureInfo.InvariantCulture),
+
+            ["TamanoPagina"] = (parametros.TamanoPagina ?? 20)
+                .ToString(CultureInfo.InvariantCulture)
+        };
+
+        if (parametros.CategoriaId.HasValue)
+        {
+            filtros["CategoriaId"] = parametros.CategoriaId.Value
+                .ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (!string.IsNullOrWhiteSpace(parametros.Buscar))
+        {
+            filtros["Buscar"] = parametros.Buscar;
+        }
+
+        if (!string.IsNullOrWhiteSpace(parametros.OrdenarPor))
+        {
+            filtros["OrdenarPor"] = parametros.OrdenarPor;
+        }
+
+        if (!string.IsNullOrWhiteSpace(parametros.Direccion))
+        {
+            filtros["Direccion"] = parametros.Direccion;
+        }
+
+        string query = string.Join("&",
+            filtros.Select(f =>
+                $"{WebUtility.UrlEncode(f.Key)}={WebUtility.UrlEncode(f.Value)}"));
+
+        string ruta = $"api/productos/catalogo?{query}";
+
+        using HttpResponseMessage respuesta = await _httpClient.GetAsync(ruta);
+        
+        respuesta.EnsureSuccessStatusCode();
+
+        var catalogo =
+            await respuesta.Content.ReadFromJsonAsync<
+                PaginadoResponseDto<ProductoCatalogoResponse>>();
+
+        if (catalogo is null)
+        {
+            throw new InvalidOperationException(
+                "El servidor no devolvió los datos del catálogo.");
+        }
+
+        return catalogo;
+    }
+    
+    public async Task<List<ProductoCarritoResponse>> ObtenerProductosCarrito(List<int> productoIds)
+    {
+        if (productoIds.Count == 0)
+        {
+            return new List<ProductoCarritoResponse>();
+            
+        }
+
+        string query = string.Join("&", productoIds.Distinct().Select(id => $"productosId={id}"));
+
+        string ruta = $"api/productos/carrito?{query}";
+
+        using HttpResponseMessage respuesta = await _autenticacionService .EnviarAutenticado(() => new HttpRequestMessage(HttpMethod.Get, ruta));
+
+        respuesta.EnsureSuccessStatusCode();
+
+        return await respuesta.Content.ReadFromJsonAsync<List<ProductoCarritoResponse>>() ?? throw new InvalidOperationException("No se pudieron obtener los productos.");
+    }
+
+    public async Task<List<CategoriaResponse>> ObtenerCategorias()
+    {
+        List<CategoriaResponse> categorias = new();
+        int pagina = 1;
+        bool hayMas;
+
+        do
+        {
+            string ruta = $"api/categorias?NumeroPagina={pagina}&TamanoPagina=50&OrdenarPor=nombre&Direccion=asc";
+
+            using HttpResponseMessage respuesta = await _httpClient.GetAsync(ruta);
+            respuesta.EnsureSuccessStatusCode();
+
+            var resultado = await respuesta.Content.ReadFromJsonAsync<PaginadoResponseDto<CategoriaResponse>>();
+
+            if (resultado is null)
+            {
+                throw new InvalidOperationException("No se pudieron obtener las categorías.");
+            }
+
+            categorias.AddRange(resultado.Datos);
+            hayMas = resultado.TienePaginaPosterior;
+            pagina++;
+        }
+        while (hayMas);
+
+        return categorias;
+    }
+}

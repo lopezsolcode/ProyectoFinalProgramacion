@@ -1,0 +1,85 @@
+using Microsoft.EntityFrameworkCore;
+using Cinemax.Backend.Data;
+using Cinemax.Backend.Models;
+using Cinemax.Backend.Models.ModeloAuxiliar;
+using Cinemax.Backend.Models.ModeloAuxiliar.Query.Usuario;
+using Cinemax.Backend.Repositories;
+using Cinemax.Shared.Enums;
+
+namespace Cinemax.Backend.Implementacion
+{
+    public class UsuarioRepositoryPsqlEF : IUsuarioRepository
+    {
+        private readonly DataContext _dataContext;
+
+        public UsuarioRepositoryPsqlEF(DataContext dataContext)
+        {
+            _dataContext = dataContext;
+        }
+        
+        public async Task<Usuario?> BuscarPorId(int id)
+        {
+            return await _dataContext.Usuarios.FirstOrDefaultAsync(u => u.Id == id);
+        }
+
+        public async Task Actualizar(Usuario usuario)
+        {
+            _dataContext.Usuarios.Update(usuario);
+            await _dataContext.SaveChangesAsync();
+        }
+
+        public async Task DarDeBaja(Usuario usuario)
+        {
+            _dataContext.Usuarios.Update(usuario);
+            await _dataContext.SaveChangesAsync();
+        }
+
+        public async Task<PaginadoResponse<Usuario>> ObtenerTodos(UsuarioQueryParametros usuarioQueryParametros)
+        {
+            // Le vamos a ir escribiendo al query cositas que desp se van a reflejar en una query de verdad. Pero no la sobreescribimos cuando la volvemos a asignar, simplemente le agregmaos otro where.
+            IQueryable<Usuario> query = _dataContext.Usuarios.AsNoTracking().AsQueryable();
+
+            if (usuarioQueryParametros.Rol.HasValue)
+            {
+                query = query.Where(u => u.Rol == usuarioQueryParametros.Rol.Value);
+            }
+            
+            if (usuarioQueryParametros.Eliminado.HasValue)
+            {
+                query = query
+                    .IgnoreQueryFilters()
+                    .Where(u => u.Eliminado == usuarioQueryParametros.Eliminado.Value);
+            }
+
+            int totalRegistros = await query.CountAsync();
+
+            // Esto chusmealo del PDF que subió Trani que está relativamente bien explicado.
+            List<Usuario> usuarios = await query
+                .Skip((usuarioQueryParametros.NumeroPagina - 1) * usuarioQueryParametros.TamanoPagina)
+                .Take(usuarioQueryParametros.TamanoPagina).ToListAsync();
+            
+            return new PaginadoResponse<Usuario>(usuarios, usuarioQueryParametros.NumeroPagina, usuarioQueryParametros.TamanoPagina, totalRegistros);
+        }
+        public Task<int> ContarAdministradores()
+        {
+            return _dataContext.Usuarios.CountAsync(u => u.Rol == Rol.Administrador);
+        }
+
+        public async Task<bool> ExistePorUsername(string username)
+        {
+
+            return await _dataContext.Usuarios.AnyAsync(u => u.Username == username);
+        }
+
+        public async Task<bool> ExistePorEmail(string email)
+        {
+
+            return await _dataContext.Usuarios.AnyAsync(u => u.Email == email);
+        }
+
+        public async Task<Usuario?> BuscarPorUsername(string username)
+        {
+            return await _dataContext.Usuarios.FirstOrDefaultAsync(u => u.Username == username);
+        }
+    }
+}

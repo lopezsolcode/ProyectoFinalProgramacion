@@ -1,0 +1,212 @@
+@page "/carrito"
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using Cinemax.Mobile.Services
+@using Cinemax.Shared.DTO.Venta.Request
+@using Cinemax.Shared.DTO.Venta.Response
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject CarritoService CarritoService
+@inject CatalogoService CatalogoService
+@attribute [Authorize(Roles = "Cliente")]
+@inject ComprasService ComprasService
+
+<PageTitle>Mi carrito</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Style="padding-bottom: 96px;">
+    <MudText Typo="Typo.h5" HtmlTag="h1">Mi carrito</MudText>
+
+@if (_cargando)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Error">@_error</MudAlert>
+    }
+    else if (_productos.Count == 0)
+    {
+        <MudText>El carrito está vacío.</MudText>
+    }
+    else
+    {
+        <MudList T="ProductoCarrito">
+            @foreach (var producto in _productos)
+            {
+                <MudListItem T="ProductoCarrito" @key="producto.ProductoId">
+                    <MudText>@producto.Nombre</MudText>
+
+                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                        <MudIconButton Icon="@Icons.Material.Filled.Remove"
+                        Disabled="@(_actualizando || _procesando)"
+                        OnClick="@(() => CambiarCantidad(producto, -1))" />
+
+                        <MudText>@producto.Cantidad</MudText>
+
+                        <MudIconButton Icon="@Icons.Material.Filled.Add"
+                        Disabled="@(_actualizando || _procesando || producto.Cantidad >= producto.Stock)"
+                        OnClick="@(() => CambiarCantidad(producto, 1))" />
+                    </MudStack>
+
+                    <MudText Typo="Typo.body2">
+                        Subtotal: @((producto.PrecioVenta * producto.Cantidad).ToString("C2", _cultura))
+                    </MudText>
+                </MudListItem>
+            }
+        </MudList>
+    }
+</MudContainer>
+
+@if (!_cargando && string.IsNullOrWhiteSpace(_error) && _productos.Count > 0)
+{
+    <MudPaper Elevation="8"
+    Class="d-flex align-center justify-space-between pa-3"
+    Style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; padding-bottom: max(12px, env(safe-area-inset-bottom));">
+        <div>
+            <MudText Typo="Typo.caption">Total</MudText>
+            <MudText Typo="Typo.h6">@Total.ToString("C2", _cultura)</MudText>
+        </div>
+
+        <MudButton Variant="Variant.Filled"
+        Color="Color.Primary"
+        Disabled="_procesando || _actualizando"
+        OnClick="Continuar">
+            @(_procesando ? "Procesando..." : $"Continuar ({CantidadTotal})")
+        </MudButton>
+    </MudPaper>
+}
+
+@code {
+    private static readonly CultureInfo _cultura = CultureInfo.GetCultureInfo("es-AR");
+
+    private List<ProductoCarrito> _productos = new();
+    private bool _cargando = true;
+    private bool _actualizando;
+    private bool _procesando;
+    private string? _error;
+
+    // Decidí usar un record porque se me hacía más cómodo, pero también podemos usar una clase si querés.
+    // Lo que sí desp cuando cambiemos la cantidad vamos a crear una nueva copia con la nueva cantidad. Si fuera una clase simplemente
+    // ajustaríamos la propiedad.
+    private record ProductoCarrito(int ProductoId, string Nombre, decimal PrecioVenta, int Cantidad, int Stock);
+
+    private decimal Total => _productos.Sum(p => p.PrecioVenta * p.Cantidad);
+    private int CantidadTotal => _productos.Sum(p => p.Cantidad);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var items = await CarritoService.Obtener();
+
+            var ids = items.Select(item => item.ProductoId).ToList();
+            var productos = await CatalogoService.ObtenerProductosCarrito(ids);
+
+            foreach (var item in items)
+            {
+                var producto = productos.FirstOrDefault(p => p.ProductoId == item.ProductoId);
+
+                if (producto is null)
+                {
+                    Snackbar.Add($"El producto {item.ProductoId} ya no está disponible.", Severity.Warning);
+                    continue;
+                }
+
+                _productos.Add(new ProductoCarrito(producto.ProductoId, producto.Nombre, producto.PrecioVenta, item.Cantidad, producto.Stock));
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _error = "No se pudo consultar el carrito. Intentá nuevamente.";
+        }
+        catch (InvalidOperationException e)
+        {
+            _error = e.Message;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task Continuar()
+    {
+        if (_procesando || _actualizando || _productos.Count == 0)
+        {
+            return;
+        }
+
+        _procesando = true;
+
+        try
+        {
+            // Se mandan solo los productos que se muestran, no lo que hay guardado en el celu,
+            // porque el guardado puede tener productos que ya no existen.
+            List<CrearVentaItemRequest> items = _productos
+                .Select(p => new CrearVentaItemRequest(p.ProductoId, p.Cantidad))
+                .ToList();
+
+            VentaResponse venta = await ComprasService.CrearCompraOnline(items);
+
+            Navigation.NavigateTo($"/pago/{venta.Id}");
+        }
+        catch (InvalidOperationException e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("No se pudo conectar con el servidor.", Severity.Error);
+        }
+        finally
+        {
+            _procesando = false;
+        }
+    }
+
+    private async Task CambiarCantidad(ProductoCarrito producto, int cambio)
+    {
+        if (_actualizando || _procesando)
+        {
+            return;
+        }
+
+        if (cambio > 0 && producto.Cantidad >= producto.Stock)
+        {
+            Snackbar.Add("No hay más unidades disponibles.", Severity.Warning);
+            return;
+        }
+
+        int cantidad = producto.Cantidad + cambio;
+
+        if (cantidad < 0)
+        {
+            return;
+        }
+
+        _actualizando = true;
+
+        try
+        {
+            await CarritoService.CambiarCantidad(producto.ProductoId, cantidad);
+
+            if (cantidad == 0)
+            {
+                _productos.Remove(producto);
+            }
+            else
+            {
+                int posicion = _productos.IndexOf(producto);
+                _productos[posicion] = producto with { Cantidad = cantidad };
+            }
+        }
+        catch (InvalidOperationException e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+        finally
+        {
+            _actualizando = false;
+        }
+    }
+}

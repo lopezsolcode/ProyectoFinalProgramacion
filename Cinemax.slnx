@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Cinemax.Backend/Cinemax.Backend.csproj" />
+  <Project Path="Cinemax.Mobile/Cinemax.Mobile.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="Cinemax.Shared/Cinemax.Shared.csproj" />
+  <Project Path="Cinemax.Web/Cinemax.Web.csproj" />
+</Solution>
