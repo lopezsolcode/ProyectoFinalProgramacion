@@ -1,6 +1,5 @@
 ﻿using Cinemax.Backend.Excepciones;
 using Cinemax.Backend.Models;
-using Cinemax.Backend.Models.Cinemax.Backend.Models;
 using Cinemax.Backend.Models.ModeloAuxiliar;
 using Cinemax.Backend.Models.ModeloAuxiliar.Query;
 using Cinemax.Backend.Repositories;
@@ -156,11 +155,11 @@ namespace Cinemax.Backend.Services
             x.ImagenUrl, x.PosterUrl, x.EnCartelera,
             x.Generos.Select(g => new ReferenciaResponse(g.GeneroId, g.Genero.Nombre)).ToList(),
             x.Personas.Where(p => p.Rol == RolPelicula.Actor)
-            .Select(p => new ReferenciaResponse(p.PersonaId, p.Persona.Nombre)).ToList(),
+                .Select(p => new ReferenciaResponse(p.PersonaId, p.Persona.Nombre)).ToList(),
             x.Personas.Where(p => p.Rol == RolPelicula.Director)
-            .Select(p => new ReferenciaResponse(p.PersonaId, p.Persona.Nombre)).ToList());
-    }
-    private static void SincronizarPersonas(Pelicula pelicula, RolPelicula rol, IEnumerable<int> nuevosIds)
+                .Select(p => new ReferenciaResponse(p.PersonaId, p.Persona.Nombre)).ToList());
+
+        private static void SincronizarPersonas(Pelicula pelicula, RolPelicula rol, IEnumerable<int> nuevosIds)
         {
             HashSet<int> destino = nuevosIds.ToHashSet();
 
@@ -175,3 +174,4 @@ namespace Cinemax.Backend.Services
                 pelicula.Personas.Add(new PersonaPelicula { PersonaId = id, Rol = rol });
         }
     }
+}

@@ -1,6 +1,5 @@
 ﻿using Cinemax.Backend.Excepciones;
 using Cinemax.Backend.Models;
-using Cinemax.Backend.Models.Cinemax.Backend.Models;
 using Cinemax.Backend.Models.ModeloAuxiliar.Query.Persona;
 using Cinemax.Backend.Models.ModeloAuxiliar;
 using Cinemax.Backend.Repositories;

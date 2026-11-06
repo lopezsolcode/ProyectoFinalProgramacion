@@ -23,4 +23,19 @@ namespace Cinemax.Backend.Data.Configuraciones
                 .HasFilter("\"Eliminado\" = false");
         }
     }
+    public class GeneroPeliculaConfiguracion : IEntityTypeConfiguration<GeneroPelicula>
+    {
+        public void Configure(EntityTypeBuilder<GeneroPelicula> builder)
+        {
+            builder.ToTable("GenerosPeliculas");
+            builder.HasKey(x => x.Id);
+
+            builder.HasOne(x => x.Pelicula).WithMany(x => x.Generos)
+                .HasForeignKey(x => x.PeliculaId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(x => x.Genero).WithMany()
+                .HasForeignKey(x => x.GeneroId).OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasIndex(x => new { x.PeliculaId, x.GeneroId }).IsUnique();
+        }
+    }
 }

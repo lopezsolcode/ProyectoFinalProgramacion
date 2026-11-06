@@ -1,8 +1,6 @@
 ﻿using Cinemax.Shared.Enums;
 
-namespace Cinemax.Backend.Models
-{
-    // Models/Persona.cs
+  // Models/Persona.cs
     namespace Cinemax.Backend.Models
     {
         public class Persona
@@ -24,4 +22,3 @@ namespace Cinemax.Backend.Models
             public Pelicula Pelicula { get; set; } = null!;
         }
     }
-}

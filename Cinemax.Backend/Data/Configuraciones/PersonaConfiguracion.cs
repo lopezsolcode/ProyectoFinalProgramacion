@@ -1,4 +1,4 @@
-﻿using Cinemax.Backend.Models.Cinemax.Backend.Models;
+﻿using Cinemax.Backend.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

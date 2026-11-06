@@ -1,5 +1,5 @@
 ﻿// Cinemax.Backend/Models/Pelicula.cs
-using Cinemax.Backend.Models.Cinemax.Backend.Models;
+using Cinemax.Backend.Models;
 using Cinemax.Shared.Enums;
 
 namespace Cinemax.Backend.Models

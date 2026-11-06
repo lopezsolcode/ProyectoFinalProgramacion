@@ -1,8 +1,9 @@
-﻿using Cinemax.Backend.Data;
+﻿using Microsoft.EntityFrameworkCore;
+using Cinemax.Backend.Data;
 using Cinemax.Backend.Models.ModeloAuxiliar;
-using Cinemax.Backend.Models;
 using Cinemax.Backend.Models.ModeloAuxiliar.Query.Persona;
 using Cinemax.Backend.Repositories;
+using Cinemax.Backend.Models;
 
 
 namespace Cinemax.Backend.Implementacion
@@ -55,7 +56,7 @@ namespace Cinemax.Backend.Implementacion
         public async Task<bool> TienePeliculasAsociadas(int id)
         {
             return await _dataContext.PersonasPeliculas
-                .AnyAsync(ap => ap.PersonaId == id && !ap.Pelicula.Eliminado);
+                .AnyAsync(pp => pp.PersonaId == id && !pp.Pelicula.Eliminado);
         }
 
         public async Task Crear(Persona Persona)
