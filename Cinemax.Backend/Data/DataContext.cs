@@ -26,6 +26,10 @@ namespace Cinemax.Backend.Data
             modelBuilder.ApplyConfiguration(new UsuarioConfiguracion());
             modelBuilder.ApplyConfiguration(new AuditoriaConfiguracion());
             modelBuilder.ApplyConfiguration(new PagoConfiguracion());
+            modelBuilder.ApplyConfiguration(new PeliculaConfiguracion());
+            modelBuilder.ApplyConfiguration(new GeneroConfiguracion());
+            modelBuilder.ApplyConfiguration(new ActorConfiguracion());
+            modelBuilder.ApplyConfiguration(new DirectorConfiguracion());
 
 
             // https://codewithmukesh.com/blog/global-query-filters-efcore/ Para no tener que poner si está o no eliminado. Esto lo tenemos que hacer con la mayoría de entidades.
@@ -48,5 +52,10 @@ namespace Cinemax.Backend.Data
         public DbSet<Venta> Ventas { get; set; }
         public DbSet<Pago> Pagos { get; set; }
         public DbSet<Auditoria> Auditorias { get; set; }
+        public DbSet<Pelicula> Peliculas { get; set; }
+        public DbSet<Pelicula> Genero { get; set; }
+        public DbSet<Pelicula> Actor { get; set; }
+        public DbSet<Pelicula> Director { get; set; }
+
     }
 }

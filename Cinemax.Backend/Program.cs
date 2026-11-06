@@ -88,10 +88,14 @@ try
         builder.Services.AddScoped<ITokenService, TokenService>();
         builder.Services.AddScoped<IPasarelaPago, PasarelaPagoSimulada>();
         builder.Services.AddScoped<IPagoRepository, PagoRepositoryPsqlEF>();
+        builder.Services.AddScoped<IPeliculaRepository, PeliculaRepositoryPsqlEF>();
+        builder.Services.AddScoped<IGeneroRepository, GeneroRepositoryPsqlEF>();
+        builder.Services.AddScoped<IPersonaRepository, PersonaRepositoryPsqlEF>();
 
 
 
-        builder.Services.AddScoped<CategoriaService>();
+
+    builder.Services.AddScoped<CategoriaService>();
         builder.Services.AddScoped<ClienteService>();
         builder.Services.AddScoped<ImagenService>();
         builder.Services.AddScoped<IngresoService>();
@@ -103,8 +107,11 @@ try
         builder.Services.AddScoped<SesionService>();
         builder.Services.AddScoped<UsuarioService>();
         builder.Services.AddScoped<VentaService>();
+        builder.Services.AddScoped<PeliculaService>();
+        builder.Services.AddScoped<PersonaService>();
+        builder.Services.AddScoped<GeneroService>();
 
-        var app = builder.Build();
+    var app = builder.Build();
 
     var webRoot = app.Environment.WebRootPath
     ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
