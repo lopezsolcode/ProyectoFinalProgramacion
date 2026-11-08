@@ -7,7 +7,7 @@
         {
             public int Id { get; set; }
             public required string Nombre { get; set; }
-            public string? ImagenUrl { get; set; }
+            public Imagen? Imagen { get; set; }
             public bool Eliminado { get; set; } = false;
             public ICollection<PersonaPelicula> Peliculas { get; set; } = new List<PersonaPelicula>();
         }

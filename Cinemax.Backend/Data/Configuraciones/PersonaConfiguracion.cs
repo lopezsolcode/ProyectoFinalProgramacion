@@ -11,7 +11,6 @@ namespace Cinemax.Backend.Data.Configuraciones
             builder.ToTable("Personas");
             builder.HasKey(x => x.Id);
             builder.Property(x => x.Nombre).IsRequired().HasMaxLength(200);
-            builder.Property(x => x.ImagenUrl).HasMaxLength(500);
             builder.HasIndex(x => x.Nombre);
         }
     }

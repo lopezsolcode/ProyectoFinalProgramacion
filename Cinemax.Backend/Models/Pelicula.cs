@@ -12,11 +12,9 @@ namespace Cinemax.Backend.Models
         public Clasificacion Clasificacion { get; set; }
         public DateOnly FechaEstreno { get; set; }
         public int DuracionMinutos { get; set; }
-        public string? ImagenUrl { get; set; }
-        public string? PosterUrl { get; set; }
         public bool EnCartelera { get; set; }
         public bool Eliminado { get; set; } = false;
-
+        public ICollection<Imagen> Imagenes { get; set; } = new List<Imagen>();
         public ICollection<Funcion> Funciones { get; set; } = new List<Funcion>();
         public ICollection<GeneroPelicula> Generos { get; set; } = new List<GeneroPelicula>();
         public ICollection<PersonaPelicula> Personas { get; set; } = new List<PersonaPelicula>();

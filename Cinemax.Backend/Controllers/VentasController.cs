@@ -77,6 +77,9 @@ public class VentasController : ControllerBase
         catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
         catch (RecursoNoExisteException e) { return NotFound(e.Message); }
         catch (BaseDeDatosException e) { return StatusCode(StatusCodes.Status500InternalServerError, e.Message); }
+        catch (StockInsuficienteException e) { return Conflict(e.Message); }
+        catch (ButacaOcupadaException e) { return Conflict(e.Message); }
+        catch (RecursoExistenteException e) { return Conflict(e.Message); }
     }
 
     [HttpPost("online")]
@@ -110,6 +113,7 @@ public class VentasController : ControllerBase
         catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
         catch (RecursoNoExisteException e) { return NotFound(e.Message); }
         catch (BaseDeDatosException e) { return StatusCode(StatusCodes.Status500InternalServerError, e.Message); }
+        catch (RecursoExistenteException e) { return Conflict(e.Message); }
     }
 
     [HttpGet("mis-compras")]
@@ -190,11 +194,10 @@ public class VentasController : ControllerBase
     [Authorize(Roles = "Administrador")]
     public async Task<IActionResult> Anular(int id)
     {
-        try
-        {
-            await _ventaService.Anular(id);
-            return NoContent();
-        }
+        int? usuarioId = User.ObtenerUsuarioId();
+        if (usuarioId is null) return Unauthorized();
+
+        try { await _ventaService.Anular(id, usuarioId.Value); return NoContent(); }
         catch (DatosLlegaronErradosException e)
         {
             return BadRequest(e.Message);
@@ -207,6 +210,19 @@ public class VentasController : ControllerBase
         {
             return StatusCode(StatusCodes.Status500InternalServerError, e.Message);
         }
+    }
+
+    [HttpPost("mis-compras/{id:int}/cancelar")]
+    [Authorize(Roles = "Cliente")]
+    public async Task<IActionResult> CancelarMiCompra(int id)
+    {
+        int? usuarioId = User.ObtenerUsuarioId();
+        if (usuarioId is null) return Unauthorized();
+
+        try { await _ventaService.CancelarMiCompra(id, usuarioId.Value); return NoContent(); }
+        catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
+        catch (RecursoNoExisteException e) { return NotFound(e.Message); }
+        catch (BaseDeDatosException e) { return StatusCode(StatusCodes.Status500InternalServerError, e.Message); }
     }
 }
 

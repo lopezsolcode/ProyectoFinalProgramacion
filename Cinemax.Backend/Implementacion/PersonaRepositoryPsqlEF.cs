@@ -15,8 +15,7 @@ namespace Cinemax.Backend.Implementacion
 
         public async Task<PaginadoResponse<Persona>> ObtenerTodos(PersonaQueryParametros p)
         {
-            IQueryable<Persona> query = _dataContext.Personas
-                .Where(a => !a.Eliminado)
+            IQueryable<Persona> query = _dataContext.Personas.Include(a => a.Imagen).Where(a => !a.Eliminado)
                 .AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(p.Buscar))
@@ -43,7 +42,7 @@ namespace Cinemax.Backend.Implementacion
 
         public async Task<Persona?> ObtenerPorId(int id)
         {
-            return await _dataContext.Personas.FirstOrDefaultAsync(a => a.Id == id && !a.Eliminado);
+            return await _dataContext.Personas.Include(a => a.Imagen).FirstOrDefaultAsync(a => a.Id == id && !a.Eliminado);
         }
 
         public async Task<bool> ExistenTodos(List<int> ids)

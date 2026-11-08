@@ -7,8 +7,6 @@ namespace Cinemax.Shared.DTO.Pelicula.Request
         Clasificacion Clasificacion,
         DateOnly FechaEstreno,
         int DuracionMinutos,
-        string? ImagenUrl,
-        string? PosterUrl,
         bool EnCartelera,
         List<int> GenerosIds,
         List<int> ActoresIds,

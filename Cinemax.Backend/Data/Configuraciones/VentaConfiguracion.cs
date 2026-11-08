@@ -56,6 +56,10 @@ namespace Cinemax.Backend.Data.Configuraciones
 
             builder.HasIndex(x => x.UsuarioId);
             builder.HasIndex(x => x.ClienteId);
+
+            builder.HasOne(x => x.Funcion).WithMany()
+                .HasForeignKey(x => x.FuncionId).OnDelete(DeleteBehavior.Restrict);
+            builder.HasIndex(x => new { x.Estado, x.FechaExpiracion });
         }
     }
 }

@@ -1,22 +1,28 @@
-﻿using Cinemax.Shared.Enums;
+﻿using Cinemax.Backend.Options;
+using Cinemax.Shared.Enums;
+using Microsoft.Extensions.Options;
 namespace Cinemax.Backend.PasarelaSimulada.Pagos
 {
     public class PasarelaPagoSimulada : IPasarelaPago
     {
-        public Task<ResultadoPasarelaPago> ProcesarPagoAsync(
-                int ventaId,
-                decimal monto,
-                MetodoPago metodo)
+        private readonly PasarelaSimuladaOptions _opciones;
+        public PasarelaPagoSimulada(IOptions<PasarelaSimuladaOptions> opciones) => _opciones = opciones.Value;
+
+        public Task<ResultadoPasarelaPago> ProcesarPagoAsync(int ventaId, decimal monto, MetodoPago metodo)
         {
-            // Simulación inicial: todos los pagos se aprueban.
-            var resultado = new ResultadoPasarelaPago
+            bool aprobar = _opciones.Modo switch
             {
-                ReferenciaPago = $"SIM-{Guid.NewGuid():N}",
-                Estado = EstadoPago.Aprobado,
-                Mensaje = "Pago aprobado por la pasarela simulada."
+                ModoPasarelaSimulada.Rechazar => false,
+                ModoPasarelaSimulada.SegunCentavos => decimal.Truncate((monto - decimal.Truncate(monto)) * 100) != 99,
+                _ => true
             };
 
-            return Task.FromResult(resultado);
+            return Task.FromResult(new ResultadoPasarelaPago
+            {
+                ReferenciaPago = $"SIM-{Guid.NewGuid():N}",
+                Estado = aprobar ? EstadoPago.Aprobado : EstadoPago.Rechazado,
+                Mensaje = aprobar ? "Pago aprobado por la pasarela simulada." : "Pago rechazado por la pasarela simulada."
+            });
         }
     }
 }

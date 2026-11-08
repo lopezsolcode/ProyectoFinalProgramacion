@@ -3,6 +3,7 @@ using Cinemax.Backend.Models;
 using Cinemax.Backend.Models.ModeloAuxiliar;
 using Cinemax.Backend.Models.ModeloAuxiliar.Query;
 using Cinemax.Backend.Repositories;
+using Cinemax.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cinemax.Backend.Implementacion
@@ -16,6 +17,7 @@ namespace Cinemax.Backend.Implementacion
         {
             IQueryable<Pelicula> query = _dataContext.Peliculas
                 .Include(x => x.Generos).ThenInclude(g => g.Genero)
+                .Include(x => x.Imagenes.Where(i => i.TipoImagen == TipoImagen.Poster))
                 .Where(x => !x.Eliminado)
                 .AsNoTracking();
 
@@ -46,12 +48,27 @@ namespace Cinemax.Backend.Implementacion
 
             return new PaginadoResponse<Pelicula>(datos, p.NumeroPagina, p.TamanoPagina, total);
         }
+        public async Task<int?> ObtenerDuracionMinutos(int id)
+        {
+            return await _dataContext.Peliculas
+                .Where(p => p.Id == id && !p.Eliminado)
+                .Select(p => (int?)p.DuracionMinutos)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<bool> TieneFuncionesFuturas(int id)
+        {
+            DateTime ahora = DateTime.UtcNow;
+            return await _dataContext.Funciones.AnyAsync(f =>
+                f.PeliculaId == id && !f.Eliminado && f.FechaHora > ahora);
+        }
 
         public async Task<Pelicula?> ObtenerPorId(int id)
         {
             // Con tracking a propósito: Actualizar sincroniza las colecciones sobre esta instancia.
             return await _dataContext.Peliculas
                 .Include(x => x.Generos).ThenInclude(g => g.Genero)
+                .Include(x => x.Imagenes)
                 .Include(x => x.Personas).ThenInclude(p => p.Persona)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(x => x.Id == id && !x.Eliminado);

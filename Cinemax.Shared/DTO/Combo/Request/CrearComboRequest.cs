@@ -1,0 +1,11 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace Cinemax.Shared.DTO.Combo.Request
+{
+    public record CrearComboRequest(
+        string Nombre, 
+        decimal Precio, 
+        List<ComboItemRequest> Items);
+}

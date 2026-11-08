@@ -1,5 +1,6 @@
 ﻿namespace Cinemax.Shared.DTO.Venta.Request;
 
 public record CrearCompraOnlineRequest(
-    List<CrearVentaItemRequest> Items
-);
+    int FuncionId, 
+    List<int> ButacasIds, 
+    List<VentaSnackItemRequest> Items);

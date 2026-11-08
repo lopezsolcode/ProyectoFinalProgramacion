@@ -12,5 +12,7 @@ namespace Cinemax.Backend.Repositories
         Task Crear(Pelicula pelicula);
         Task Actualizar(Pelicula pelicula);
         Task Eliminar(Pelicula pelicula);
+        Task<int?> ObtenerDuracionMinutos(int id);
+        Task<bool> TieneFuncionesFuturas(int id);
     }
 }

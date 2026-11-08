@@ -18,11 +18,13 @@ namespace Cinemax.Backend.Services
         private readonly IPeliculaRepository _repo;
         private readonly IGeneroRepository _generoRepo;
         private readonly IPersonaRepository _personaRepo;
+        private readonly ImagenMapeador _imagenes;
 
 
-        public PeliculaService(IPeliculaRepository repo, IGeneroRepository generoRepo, IPersonaRepository personaRepo)
+        public PeliculaService(IPeliculaRepository repo, IGeneroRepository generoRepo,
+            IPersonaRepository personaRepo, ImagenMapeador imagenes)
         {
-            _repo = repo; _generoRepo = generoRepo; _personaRepo = personaRepo;
+            _repo = repo; _generoRepo = generoRepo; _personaRepo = personaRepo; _imagenes = imagenes;
         }
 
         public async Task<PaginadoResponse<PeliculaListadoResponse>> ObtenerTodos(ParametroPaginacionPeliculaRequest p)
@@ -37,10 +39,13 @@ namespace Cinemax.Backend.Services
         {
             var resultado = await _repo.ObtenerTodos(ConstruirQuery(p, soloCartelera: true));
             var datos = resultado.Datos.Select(x => new PeliculaCatalogoResponse(
-                x.Id, x.Titulo, x.Clasificacion, x.DuracionMinutos, x.PosterUrl,
+                x.Id, x.Titulo, x.Clasificacion, x.DuracionMinutos, _imagenes.Mapear(ObtenerImagen(x, TipoImagen.Poster)),
                 x.Generos.Select(g => g.Genero.Nombre).ToList())).ToList();
             return new PaginadoResponse<PeliculaCatalogoResponse>(datos, resultado.NumeroPagina, resultado.TamanoPagina, resultado.TotalRegistros);
         }
+        private static Imagen? ObtenerImagen(Pelicula p, TipoImagen tipo) =>
+             p.Imagenes.FirstOrDefault(i => i.TipoImagen == tipo);
+
 
         public async Task<PeliculaResponse> ObtenerPorId(int id)
         {
@@ -51,7 +56,7 @@ namespace Cinemax.Backend.Services
 
         public async Task<PeliculaResponse> Crear(CrearPeliculaRequest dto)
         {
-            ValidarCampos(dto.Titulo, dto.Sinopsis, dto.DuracionMinutos, dto.ImagenUrl, dto.PosterUrl);
+            ValidarCampos(dto.Titulo, dto.Sinopsis, dto.DuracionMinutos);
             await ValidarRelaciones(dto.GenerosIds, dto.ActoresIds, dto.DirectoresIds);
 
             if (await _repo.ExistePorTitulo(dto.Titulo.Trim(), dto.FechaEstreno))
@@ -64,8 +69,6 @@ namespace Cinemax.Backend.Services
                 Clasificacion = dto.Clasificacion,
                 FechaEstreno = dto.FechaEstreno,
                 DuracionMinutos = dto.DuracionMinutos,
-                ImagenUrl = dto.ImagenUrl,
-                PosterUrl = dto.PosterUrl,
                 EnCartelera = dto.EnCartelera,
                 Generos = dto.GenerosIds.Distinct()
                 .Select(i => new GeneroPelicula { GeneroId = i }).ToList(),
@@ -82,7 +85,7 @@ namespace Cinemax.Backend.Services
 
         public async Task Actualizar(int id, ActualizarPeliculaRequest dto)
         {
-            ValidarCampos(dto.Titulo, dto.Sinopsis, dto.DuracionMinutos, dto.ImagenUrl, dto.PosterUrl);
+            ValidarCampos(dto.Titulo, dto.Sinopsis, dto.DuracionMinutos);
             await ValidarRelaciones(dto.GenerosIds, dto.ActoresIds, dto.DirectoresIds);
 
             Pelicula pelicula = await _repo.ObtenerPorId(id)
@@ -96,8 +99,6 @@ namespace Cinemax.Backend.Services
             pelicula.Clasificacion = dto.Clasificacion;
             pelicula.FechaEstreno = dto.FechaEstreno;
             pelicula.DuracionMinutos = dto.DuracionMinutos;
-            pelicula.ImagenUrl = dto.ImagenUrl;
-            pelicula.PosterUrl = dto.PosterUrl;
             pelicula.EnCartelera = dto.EnCartelera;
 
             pelicula.Generos.Clear();
@@ -113,20 +114,20 @@ namespace Cinemax.Backend.Services
         {
             Pelicula pelicula = await _repo.ObtenerPorId(id)
                 ?? throw new RecursoNoExisteException("No existe ninguna película con ese id.");
+            if (await _repo.TieneFuncionesFuturas(id))
+                throw new RecursoExistenteException("No se puede eliminar: la película tiene funciones programadas.");
             await _repo.Eliminar(pelicula);
             // Cuando exista Función: decidir si se puede dar de baja con funciones futuras (409).
         }
 
         // ---- privados ----
-        private static void ValidarCampos(string titulo, string sinopsis, int duracion, string? imagen, string? poster)
+        private static void ValidarCampos(string titulo, string sinopsis, int duracion)
         {
             if (!Validaciones.EstanDatosBien(titulo)) throw new DatosLlegaronErradosException("El título es obligatorio.");
             if (!Validaciones.EstanDatosBien(sinopsis)) throw new DatosLlegaronErradosException("La sinopsis es obligatoria.");
             if (titulo.Trim().Length > 200) throw new DatosLlegaronErradosException("El título no puede superar 200 caracteres.");
             if (sinopsis.Trim().Length > 2000) throw new DatosLlegaronErradosException("La sinopsis no puede superar 2000 caracteres.");
             if (duracion <= 0) throw new DatosLlegaronErradosException("La duración debe ser mayor a cero.");
-            if ((imagen?.Length ?? 0) > 500 || (poster?.Length ?? 0) > 500)
-                throw new DatosLlegaronErradosException("Las URLs no pueden superar 500 caracteres.");
         }
 
         private async Task ValidarRelaciones(List<int> generos, List<int> actores, List<int> directores)
@@ -150,9 +151,9 @@ namespace Cinemax.Backend.Services
             Direccion = p.Direccion
         };
 
-        private static PeliculaResponse Mapear(Pelicula x) => new(
-            x.Id, x.Titulo, x.Sinopsis, x.Clasificacion, x.FechaEstreno, x.DuracionMinutos,
-            x.ImagenUrl, x.PosterUrl, x.EnCartelera,
+        private  PeliculaResponse Mapear(Pelicula x) => new(
+            x.Id, x.Titulo, x.Sinopsis, x.Clasificacion, x.FechaEstreno, x.DuracionMinutos, _imagenes.Mapear(ObtenerImagen(x, TipoImagen.Principal)), _imagenes.Mapear(ObtenerImagen(x, TipoImagen.Poster)),
+             x.EnCartelera,
             x.Generos.Select(g => new ReferenciaResponse(g.GeneroId, g.Genero.Nombre)).ToList(),
             x.Personas.Where(p => p.Rol == RolPelicula.Actor)
                 .Select(p => new ReferenciaResponse(p.PersonaId, p.Persona.Nombre)).ToList(),

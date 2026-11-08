@@ -75,12 +75,27 @@ try
                 };
             });
 
-        builder.Services.AddScoped<ICategoriaRepository, CategoriaRepositoryPsqlEF>();
+            builder.Services.AddOptions<SalaLayoutOptions>()
+            .Bind(builder.Configuration.GetSection(SalaLayoutOptions.Seccion))
+            .Validate(o => o.Filas is >= 1 and <= 26
+                           && o.Bloques.Count > 0 && o.Bloques.All(b => b > 0)
+                           && o.AnchoPasillo >= 0,
+                "SalaLayout inválido: 1-26 filas, bloques mayores a cero y pasillo no negativo.")
+            .ValidateOnStart();
+
+            builder.Services.AddOptions<FuncionOptions>()
+            .Bind(builder.Configuration.GetSection(FuncionOptions.Seccion))
+            .Validate(o => o.MargenLimpiezaMinutos is >= 0 and <= 120, "Funciones:MargenLimpiezaMinutos inválido.")
+            .ValidateOnStart();
+
+            builder.Services.AddOptions<VentaOptions>()
+            .Bind(builder.Configuration.GetSection(VentaOptions.Seccion))
+            .Validate(o => o.MinutosVencimiento is >= 1 and <= 120 && o.MaxButacasPorVenta is >= 1 and <= 30,
+                "Ventas: configuración inválida.")
+            .ValidateOnStart();
+
         builder.Services.AddScoped<IClienteRepository, ClienteRepositoryPsqlEF>();
         builder.Services.AddScoped<IImagenRepository, ImagenRepositoryPsqlEF>();
-        builder.Services.AddScoped<IIngresoRepository, IngresoRepositoryPsqlEF>();
-        builder.Services.AddScoped<IProductoRepository, ProductoRepositoryPsqlEF>();
-        builder.Services.AddScoped<IProveedorRepository, ProveedorRepositoryPsqlEF>();
         builder.Services.AddScoped<IRegisterRepository, RegisterRepositoryPsqlEF>();
         builder.Services.AddScoped<ISesionUsuarioRepository, SesionUsuarioRepositoryPsqlEF>();
         builder.Services.AddScoped<IUsuarioRepository, UsuarioRepositoryPsqlEF>();
@@ -91,17 +106,18 @@ try
         builder.Services.AddScoped<IPeliculaRepository, PeliculaRepositoryPsqlEF>();
         builder.Services.AddScoped<IGeneroRepository, GeneroRepositoryPsqlEF>();
         builder.Services.AddScoped<IPersonaRepository, PersonaRepositoryPsqlEF>();
+        builder.Services.AddScoped<ISalaRepository, SalaRepositoryPsqlEF>();
+        builder.Services.AddScoped<IFuncionRepository, FuncionRepositoryPsqlEF>();
+        builder.Services.AddScoped<ISnackRepository, SnackRepositoryPsqlEF>();
+        builder.Services.AddScoped<IInventarioRepository, InventarioRepositoryPsqlEF>();
+        builder.Services.AddScoped<IComboRepository, ComboRepositoryPsqlEF>();
+        builder.Services.AddScoped<IUnidadDeTrabajo, UnidadDeTrabajoPsqlEF>();
+        builder.Services.AddScoped<IVentaRepository, VentaRepositoryPsqlEF>();
+        builder.Services.AddScoped<IPasarelaPago, PasarelaPagoSimulada>();
 
-
-
-
-    builder.Services.AddScoped<CategoriaService>();
         builder.Services.AddScoped<ClienteService>();
         builder.Services.AddScoped<ImagenService>();
-        builder.Services.AddScoped<IngresoService>();
         builder.Services.AddScoped<LoginService>();
-        builder.Services.AddScoped<ProductoService>();
-        builder.Services.AddScoped<ProveedorService>();
         builder.Services.AddScoped<PagoService>();
         builder.Services.AddScoped<RegisterService>();
         builder.Services.AddScoped<SesionService>();
@@ -110,6 +126,16 @@ try
         builder.Services.AddScoped<PeliculaService>();
         builder.Services.AddScoped<PersonaService>();
         builder.Services.AddScoped<GeneroService>();
+        builder.Services.AddScoped<SalaService>();
+        builder.Services.AddScoped<FuncionService>();
+        builder.Services.AddScoped<SnackService>();
+        builder.Services.AddScoped<ComboService>();
+        builder.Services.AddScoped<InventarioService>();
+        builder.Services.AddScoped<PagoService>();
+        builder.Services.AddScoped<VentaService>();
+        builder.Services.AddScoped<ImagenMapeador>();
+
+        builder.Services.AddHttpContextAccessor();
 
     var app = builder.Build();
 

@@ -1,5 +1,2 @@
 ﻿namespace Cinemax.Shared.DTO.Venta.Request;
-public record CrearVentaItemRequest(
-    int ProductoId,
-    int Cantidad
-);
+public record VentaSnackItemRequest(int? SnackId, int? ComboId, int Cantidad);

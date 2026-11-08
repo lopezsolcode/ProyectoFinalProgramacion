@@ -11,7 +11,6 @@ namespace Cinemax.Backend.Models
         public Rol Rol { get; set; } = Rol.Cliente;
         public bool Eliminado { get; set; } = false;
         public ICollection<Venta>? Ventas { get; set; }
-        public ICollection<Ingreso>? Ingresos { get; set; }
         public ICollection<Auditoria> Auditorias { get; set; } = new List<Auditoria>();
         public Cliente? Cliente { get; set; }
     }

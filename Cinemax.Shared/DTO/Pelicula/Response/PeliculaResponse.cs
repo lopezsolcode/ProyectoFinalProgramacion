@@ -15,7 +15,7 @@ namespace Cinemax.Shared.DTO.Pelicula.Response
         string Titulo, 
         Clasificacion Clasificacion,
         int DuracionMinutos, 
-        string? PosterUrl, 
+        ImagenResponse? Poster, 
         List<string> Generos);
     public record PeliculaResponse(
         int Id, 
@@ -24,8 +24,8 @@ namespace Cinemax.Shared.DTO.Pelicula.Response
         Clasificacion Clasificacion,
         DateOnly FechaEstreno, 
         int DuracionMinutos, 
-        string? ImagenUrl, 
-        string? PosterUrl, 
+        ImagenResponse? ImagenPrincipal, 
+        ImagenResponse? Poster, 
         bool EnCartelera,
         List<ReferenciaResponse> Generos, 
         List<ReferenciaResponse> Actores, 

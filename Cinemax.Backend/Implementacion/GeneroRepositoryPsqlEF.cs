@@ -3,6 +3,7 @@ using Cinemax.Backend.Models;
 using Cinemax.Backend.Models.ModeloAuxiliar;
 using Cinemax.Backend.Models.ModeloAuxiliar.Query.Genero;
 using Cinemax.Backend.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cinemax.Backend.Implementacion
 {

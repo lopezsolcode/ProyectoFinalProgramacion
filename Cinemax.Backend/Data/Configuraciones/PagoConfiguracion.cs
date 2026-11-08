@@ -16,6 +16,10 @@ namespace Cinemax.Backend.Data.Configuraciones
             builder.Property(x => x.Monto).IsRequired().HasPrecision(18, 2);
             builder.Property(x => x.Fecha).IsRequired();
             builder.Property(x => x.ReferenciaPago).HasMaxLength(100);
+            builder.Property(x => x.Estado).HasConversion<string>().HasMaxLength(20);
+            builder.HasIndex(x => x.VentaId).IsUnique()
+                .HasFilter("\"Estado\" = 'Pendiente'")
+                .HasDatabaseName("UX_Pago_Venta_Pendiente");
 
             builder.HasOne(x => x.Venta)
                 .WithMany(x => x.Pagos)

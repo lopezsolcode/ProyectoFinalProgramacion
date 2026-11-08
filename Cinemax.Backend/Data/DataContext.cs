@@ -12,43 +12,35 @@ namespace Cinemax.Backend.Data
         }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.ApplyConfiguration(new CategoriaConfiguracion());
             modelBuilder.ApplyConfiguration(new SesionUsuarioConfiguracion());
             modelBuilder.ApplyConfiguration(new ClienteConfiguracion());
-            modelBuilder.ApplyConfiguration(new DetalleIngresoConfiguracion());
-            modelBuilder.ApplyConfiguration(new DetalleVentaConfiguracion());
             modelBuilder.ApplyConfiguration(new ImagenConfiguracion());
-            modelBuilder.ApplyConfiguration(new IngresoConfiguracion());
-            modelBuilder.ApplyConfiguration(new ProductoConfiguracion());
-            modelBuilder.ApplyConfiguration(new ProveedorConfiguracion());
             modelBuilder.ApplyConfiguration(new UsuarioConfiguracion());
             modelBuilder.ApplyConfiguration(new VentaConfiguracion());
-            modelBuilder.ApplyConfiguration(new UsuarioConfiguracion());
             modelBuilder.ApplyConfiguration(new AuditoriaConfiguracion());
             modelBuilder.ApplyConfiguration(new PagoConfiguracion());
             modelBuilder.ApplyConfiguration(new PeliculaConfiguracion());
             modelBuilder.ApplyConfiguration(new GeneroPeliculaConfiguracion());
-
+            modelBuilder.ApplyConfiguration(new SalaConfiguracion());
+            modelBuilder.ApplyConfiguration(new ButacaConfiguracion());
             modelBuilder.ApplyConfiguration(new GeneroConfiguracion());
             modelBuilder.ApplyConfiguration(new PersonaConfiguracion());
             modelBuilder.ApplyConfiguration(new PersonaPeliculaConfiguracion());
-
+            modelBuilder.ApplyConfiguration(new FuncionConfiguracion());
+            modelBuilder.ApplyConfiguration(new SnackConfiguracion());
+            modelBuilder.ApplyConfiguration(new InventarioConfiguracion());
+            modelBuilder.ApplyConfiguration(new ComboConfiguracion());
+            modelBuilder.ApplyConfiguration(new ComboSnackConfiguracion());
+            modelBuilder.ApplyConfiguration(new EntradaVentaConfiguracion());
+            modelBuilder.ApplyConfiguration(new DetalleVentaSnackConfiguracion());
+            modelBuilder.ApplyConfiguration(new ConsumoStockVentaConfiguracion());
 
             // https://codewithmukesh.com/blog/global-query-filters-efcore/ Para no tener que poner si está o no eliminado. Esto lo tenemos que hacer con la mayoría de entidades.
             modelBuilder.Entity<Usuario>().HasQueryFilter(u => !u.Eliminado);
-            modelBuilder.Entity<Proveedor>().HasQueryFilter(p => !p.Eliminado);
-
-
         }
 
-        public DbSet<Categoria> Categorias{ get; set; }
         public DbSet<Cliente> Clientes { get; set; }
-        public DbSet<DetalleIngreso> DetallesIngresos { get; set; }
-        public DbSet<DetalleVenta> DetallesVentas { get; set; }
         public DbSet<Imagen> Imagenes { get; set; }
-        public DbSet<Ingreso> Ingresos { get; set; }
-        public DbSet<Producto> Productos { get; set; }
-        public DbSet<Proveedor> Proveedores { get; set; }
         public DbSet<SesionUsuario> SesionesUsuarios { get; set; }
         public DbSet<Usuario> Usuarios { get; set; }
         public DbSet<Venta> Ventas { get; set; }
@@ -59,6 +51,15 @@ namespace Cinemax.Backend.Data
         public DbSet<Genero> Generos { get; set; }
         public DbSet<Persona> Personas { get; set; }
         public DbSet<PersonaPelicula> PersonasPeliculas { get; set; }
+        public DbSet<Sala> Salas { get; set; }
+        public DbSet<Butaca> Butacas { get; set; }
+        public DbSet<Funcion> Funciones { get; set; }
+        public DbSet<Snack> Snacks { get; set; }
+        public DbSet<Inventario> Inventarios { get; set; }
+        public DbSet<Combo> Combos { get; set; }
+        public DbSet<ComboSnack> ComboSnacks { get; set; }
+        public DbSet<EntradaVenta> EntradasVenta { get; set; }
+        public DbSet<ConsumoStockVenta> ConsumosStockVenta { get; set; }
 
 
     }
