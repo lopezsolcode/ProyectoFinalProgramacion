@@ -112,8 +112,6 @@ try
         builder.Services.AddScoped<IInventarioRepository, InventarioRepositoryPsqlEF>();
         builder.Services.AddScoped<IComboRepository, ComboRepositoryPsqlEF>();
         builder.Services.AddScoped<IUnidadDeTrabajo, UnidadDeTrabajoPsqlEF>();
-        builder.Services.AddScoped<IVentaRepository, VentaRepositoryPsqlEF>();
-        builder.Services.AddScoped<IPasarelaPago, PasarelaPagoSimulada>();
 
         builder.Services.AddScoped<ClienteService>();
         builder.Services.AddScoped<ImagenService>();
@@ -131,8 +129,6 @@ try
         builder.Services.AddScoped<SnackService>();
         builder.Services.AddScoped<ComboService>();
         builder.Services.AddScoped<InventarioService>();
-        builder.Services.AddScoped<PagoService>();
-        builder.Services.AddScoped<VentaService>();
         builder.Services.AddScoped<ImagenMapeador>();
 
         builder.Services.AddHttpContextAccessor();

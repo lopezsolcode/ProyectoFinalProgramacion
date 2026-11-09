@@ -1,0 +1,55 @@
+@inherits PosComponentBase
+@inject IJSRuntime JS
+
+<MudStack Spacing="3">
+    @if (Estado.VentaFinalizada is not null)
+    {
+        <MudAlert Severity="Severity.Success">
+            Venta #@Estado.VentaFinalizada.Id registrada por @PosFormato.Moneda(Estado.VentaFinalizada.Total).
+        </MudAlert>
+
+        <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Download"
+                       Disabled="@_descargando"
+                       OnClick="DescargarTicket">
+                @(_descargando ? "Descargando..." : "Descargar ticket")
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="Estado.Reiniciar">
+                Nueva venta
+            </MudButton>
+        </MudStack>
+    }
+</MudStack>
+
+@code {
+    private bool _descargando;
+
+    private async Task DescargarTicket()
+    {
+        if (Estado.VentaFinalizada is null) return;
+
+        _descargando = true;
+
+        try
+        {
+            int id = Estado.VentaFinalizada.Id;
+            byte[] pdf = await Api.ObtenerTicketPdf(id);
+
+            await JS.InvokeVoidAsync("cinemaxArchivos.descargar", $"Venta-{id}.pdf", "application/pdf", Convert.ToBase64String(pdf));
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("No se pudo obtener el ticket. Verificá tu sesión y tus permisos.", Severity.Error);
+        }
+        finally
+        {
+            _descargando = false;
+        }
+    }
+}

@@ -1,0 +1,70 @@
+@page "/pos"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Cajero")]
+@inherits PosComponentBase
+@using Cinemax.Web.Components.Pos
+@using Cinemax.Web.Services
+
+<PageTitle>Punto de venta</PageTitle>
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="8">
+        <MudPaper Elevation="1" Class="pa-4">
+
+            @if (Estado.Paso != PasoPos.Finalizada)
+            {
+                <div class="d-flex gap-2 overflow-auto pb-3">
+                    @foreach ((PasoPos paso, string etiqueta) in _pasos)
+                    {
+                        <MudButton @key="paso"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   Style="white-space: nowrap;"
+                                   Variant="@(Estado.Paso == paso ? Variant.Filled : Variant.Outlined)"
+                                   Disabled="@(!Estado.PuedeIr(paso))"
+                                   OnClick="@(() => Estado.IrA(paso))">
+                            @etiqueta
+                        </MudButton>
+                    }
+                </div>
+            }
+
+            @switch (Estado.Paso)
+            {
+                case PasoPos.Pelicula:
+                    <PosPasoPeliculas />
+                    break;
+                case PasoPos.Funcion:
+                    <PosPasoFunciones />
+                    break;
+                case PasoPos.Butacas:
+                    <PosPasoButacas />
+                    break;
+                case PasoPos.Snacks:
+                    <PosPasoSnacks />
+                    break;
+                case PasoPos.Cobro:
+                    <PosPasoCobro />
+                    break;
+                case PasoPos.Finalizada:
+                    <PosPasoFinalizada />
+                    break;
+            }
+
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <PosResumen />
+    </MudItem>
+</MudGrid>
+
+@code {
+    private static readonly (PasoPos Paso, string Etiqueta)[] _pasos =
+    [
+        (PasoPos.Pelicula, "Película"),
+        (PasoPos.Funcion, "Función"),
+        (PasoPos.Butacas, "Butacas"),
+        (PasoPos.Snacks, "Snacks"),
+        (PasoPos.Cobro, "Cobro")
+    ];
+}

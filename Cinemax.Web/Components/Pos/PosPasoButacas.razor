@@ -1,0 +1,158 @@
+@inherits PosComponentBase
+
+<MudStack Spacing="3">
+    <div>
+        <MudText Typo="Typo.h6">@Estado.Pelicula?.Titulo</MudText>
+        @if (Estado.Funcion is not null)
+        {
+            <MudText Typo="Typo.body2">
+                @PosFormato.DiaHora(Estado.Funcion.FechaHora), Sala @Estado.Funcion.SalaNumero, @Estado.Funcion.Formato, @Estado.Funcion.Idioma
+            </MudText>
+        }
+    </div>
+
+    @if (_cargando)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Error">@_error</MudAlert>
+        <MudButton Color="Color.Primary" OnClick="CargarMapa">Reintentar</MudButton>
+    }
+    else if (_mapa is not null)
+    {
+        <div class="d-flex gap-4 flex-wrap">
+            <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-surface)", "2px solid var(--mud-palette-lines-inputs)")"></span> Libre</span>
+            <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-surface)", "2px solid var(--mud-palette-info)")"></span> Accesible</span>
+            <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-primary)", "2px solid var(--mud-palette-primary)")"></span> Elegida</span>
+            <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-action-disabled-background)", "2px solid transparent")"></span> Ocupada</span>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <div style="display: inline-block; min-width: 100%;">
+                <div class="mud-background-gray text-center mb-4 pa-1" style="border-radius: 4px;">
+                    <MudText Typo="Typo.caption">Pantalla</MudText>
+                </div>
+
+                @foreach (string fila in _mapa.Filas)
+                {
+                    <div @key="fila" class="d-flex align-center justify-center mb-1">
+                        <span style="width: 24px; font-weight: 600;">@fila</span>
+                        <div style="display: grid; grid-template-columns: repeat(@(_mapa.TotalColumnas), 30px); gap: 4px;">
+                            @for (int c = 1; c <= _mapa.TotalColumnas; c++)
+                            {
+                                if (_porPosicion.TryGetValue((fila, c), out ButacaFuncionResponse? b))
+                                {
+                                    <button type="button"
+                                            style="@Estilo(b)"
+                                            disabled="@b.Ocupada"
+                                            title="@Titulo(b)"
+                                            @onclick="() => Alternar(b)">
+                                        @b.Numero
+                                    </button>
+                                }
+                                else
+                                {
+                                    <div></div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+        <MudButton Variant="Variant.Text" OnClick="@(() => Estado.IrA(PasoPos.Funcion))">Cambiar función</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="CargarMapa" Disabled="@_cargando">Actualizar mapa</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@(Estado.Butacas.Count == 0)"
+                   OnClick="@(() => Estado.IrA(PasoPos.Snacks))">
+            Continuar con snacks
+        </MudButton>
+    </MudStack>
+</MudStack>
+
+@code {
+    private MapaFuncionResponse? _mapa;
+    private Dictionary<(string Fila, int Columna), ButacaFuncionResponse> _porPosicion = new();
+    private string? _error;
+    private bool _cargando;
+
+    protected override Task OnInitializedAsync() => CargarMapa();
+
+    private async Task CargarMapa()
+    {
+        if (Estado.Funcion is null) return;
+
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            MapaFuncionResponse mapa = await Api.ObtenerMapa(Estado.Funcion.Id);
+
+            _mapa = mapa;
+            _porPosicion = mapa.Butacas.ToDictionary(b => (b.Fila, b.Columna));
+
+            // Si otra caja vendió una butaca ya elegida, se la saca de la selección.
+            List<int> vendidas = Estado.Butacas
+                .Where(s => mapa.Butacas.Any(b => b.Id == s.Id && b.Ocupada))
+                .Select(s => s.Id)
+                .ToList();
+
+            if (vendidas.Count > 0)
+            {
+                Estado.DescartarButacas(vendidas);
+                Snackbar.Add("Algunas butacas elegidas ya se vendieron y se quitaron de la selección.", Severity.Warning);
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            _error = Mensaje(e, "No se pudo cargar el mapa de butacas. Verificá la conexión con el servidor.");
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Alternar(ButacaFuncionResponse butaca)
+    {
+        if (butaca.Ocupada) return;
+
+        if (!Estado.AlternarButaca(butaca, PosService.MaxButacasPorVenta))
+        {
+            Snackbar.Add($"No se pueden vender más de {PosService.MaxButacasPorVenta} entradas por venta.", Severity.Info);
+        }
+    }
+
+    private static string Titulo(ButacaFuncionResponse b) =>
+        $"{b.Fila}{b.Numero}" + (b.Accesible ? " (accesible)" : "") + (b.Ocupada ? ", ocupada" : "");
+
+    private string Estilo(ButacaFuncionResponse b)
+    {
+        const string basico = "width: 30px; height: 30px; border-radius: 6px; font-size: 11px; padding: 0; ";
+
+        if (b.Ocupada)
+        {
+            return basico + "background: var(--mud-palette-action-disabled-background); color: var(--mud-palette-text-disabled); border: 2px solid transparent; cursor: not-allowed;";
+        }
+
+        if (Estado.EstaSeleccionada(b.Id))
+        {
+            return basico + "background: var(--mud-palette-primary); color: var(--mud-palette-primary-text); border: 2px solid var(--mud-palette-primary); cursor: pointer;";
+        }
+
+        string borde = b.Accesible ? "var(--mud-palette-info)" : "var(--mud-palette-lines-inputs)";
+        return basico + $"background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); border: 2px solid {borde}; cursor: pointer;";
+    }
+
+    private static string Leyenda(string fondo, string borde) =>
+        $"display: inline-block; width: 16px; height: 16px; border-radius: 4px; background: {fondo}; border: {borde};";
+}

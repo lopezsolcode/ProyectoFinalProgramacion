@@ -103,29 +103,6 @@ namespace Cinemax.Backend.Migrations
                     b.ToTable("Butacas", (string)null);
                 });
 
-            modelBuilder.Entity("Cinemax.Backend.Models.Categoria", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Descripcion")
-                        .IsRequired()
-                        .HasMaxLength(600)
-                        .HasColumnType("character varying(600)");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Categorias", (string)null);
-                });
-
             modelBuilder.Entity("Cinemax.Backend.Models.Cliente", b =>
                 {
                     b.Property<int>("Id")
@@ -187,10 +164,6 @@ namespace Cinemax.Backend.Migrations
                     b.Property<bool>("Eliminado")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("ImagenUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -239,46 +212,108 @@ namespace Cinemax.Backend.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Cinemax.Backend.Models.DetalleIngreso", b =>
+            modelBuilder.Entity("Cinemax.Backend.Models.ConsumoStockVenta", b =>
                 {
-                    b.Property<int>("ProductoId")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
-                    b.Property<int>("IngresoId")
-                        .HasColumnType("integer");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("Cantidad")
                         .HasColumnType("integer");
 
-                    b.Property<decimal>("PrecioUnitario")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("ProductoId", "IngresoId");
-
-                    b.HasIndex("IngresoId");
-
-                    b.ToTable("DetallesIngresos", (string)null);
-                });
-
-            modelBuilder.Entity("Cinemax.Backend.Models.DetalleVenta", b =>
-                {
-                    b.Property<int>("ProductoId")
+                    b.Property<int>("SnackId")
                         .HasColumnType("integer");
 
                     b.Property<int>("VentaId")
                         .HasColumnType("integer");
 
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnackId");
+
+                    b.HasIndex("VentaId", "SnackId")
+                        .IsUnique();
+
+                    b.ToTable("ConsumosStockVenta", (string)null);
+                });
+
+            modelBuilder.Entity("Cinemax.Backend.Models.DetalleVentaSnack", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
                     b.Property<int>("Cantidad")
                         .HasColumnType("integer");
 
-                    b.Property<decimal>("PrecioUnitario")
-                        .HasColumnType("numeric");
+                    b.Property<int?>("ComboId")
+                        .HasColumnType("integer");
 
-                    b.HasKey("ProductoId", "VentaId");
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<int?>("SnackId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VentaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComboId");
+
+                    b.HasIndex("SnackId");
 
                     b.HasIndex("VentaId");
 
-                    b.ToTable("DetallesVentas", (string)null);
+                    b.ToTable("DetallesVentaSnack", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DetalleVentaSnack_SnackOCombo", "(\"SnackId\" IS NOT NULL AND \"ComboId\" IS NULL) OR (\"SnackId\" IS NULL AND \"ComboId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Cinemax.Backend.Models.EntradaVenta", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ButacaId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FuncionId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Precio")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<int>("VentaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ButacaId");
+
+                    b.HasIndex("FuncionId", "ButacaId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EntradaVenta_Funcion_Butaca_Activa")
+                        .HasFilter("\"Activa\" = true");
+
+                    b.HasIndex("VentaId", "ButacaId")
+                        .IsUnique();
+
+                    b.ToTable("EntradasVenta", (string)null);
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Funcion", b =>
@@ -389,6 +424,9 @@ namespace Cinemax.Backend.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("ComboId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp with time zone");
 
@@ -400,12 +438,18 @@ namespace Cinemax.Backend.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("ProductoId")
+                    b.Property<int?>("PeliculaId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PersonaId")
                         .HasColumnType("integer");
 
                     b.Property<string>("RutaRelativa")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("SnackId")
+                        .HasColumnType("integer");
 
                     b.Property<long>("TamanoBytes")
                         .HasColumnType("bigint");
@@ -414,44 +458,30 @@ namespace Cinemax.Backend.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TipoImagen")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductoId")
+                    b.HasIndex("ComboId")
                         .IsUnique();
 
-                    b.ToTable("Imagenes", (string)null);
-                });
+                    b.HasIndex("PersonaId")
+                        .IsUnique();
 
-            modelBuilder.Entity("Cinemax.Backend.Models.Ingreso", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                    b.HasIndex("SnackId")
+                        .IsUnique();
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.HasIndex("PeliculaId", "TipoImagen")
+                        .IsUnique()
+                        .HasFilter("\"PeliculaId\" IS NOT NULL");
 
-                    b.Property<bool>("Anulado")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("Fecha")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ProveedorId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Total")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("UsuarioId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProveedorId");
-
-                    b.HasIndex("UsuarioId");
-
-                    b.ToTable("Ingresos", (string)null);
+                    b.ToTable("Imagenes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Imagen_UnaSolaEntidad", "(\r\n    (\r\n        \"SnackId\" IS NOT NULL\r\n        AND \"ComboId\" IS NULL\r\n        AND \"PersonaId\" IS NULL\r\n        AND \"PeliculaId\" IS NULL\r\n        AND \"TipoImagen\" = 'Unica'\r\n    )\r\n    OR\r\n    (\r\n        \"SnackId\" IS NULL\r\n        AND \"ComboId\" IS NOT NULL\r\n        AND \"PersonaId\" IS NULL\r\n        AND \"PeliculaId\" IS NULL\r\n        AND \"TipoImagen\" = 'Unica'\r\n    )\r\n    OR\r\n    (\r\n        \"SnackId\" IS NULL\r\n        AND \"ComboId\" IS NULL\r\n        AND \"PersonaId\" IS NOT NULL\r\n        AND \"PeliculaId\" IS NULL\r\n        AND \"TipoImagen\" = 'Unica'\r\n    )\r\n    OR\r\n    (\r\n        \"SnackId\" IS NULL\r\n        AND \"ComboId\" IS NULL\r\n        AND \"PersonaId\" IS NULL\r\n        AND \"PeliculaId\" IS NOT NULL\r\n        AND \"TipoImagen\" IN ('Principal', 'Poster')\r\n    )\r\n)");
+                        });
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Inventario", b =>
@@ -492,8 +522,10 @@ namespace Cinemax.Backend.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("Estado")
-                        .HasColumnType("integer");
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTime>("Fecha")
                         .HasColumnType("timestamp with time zone");
@@ -514,7 +546,10 @@ namespace Cinemax.Backend.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("VentaId");
+                    b.HasIndex("VentaId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Pago_Venta_Pendiente")
+                        .HasFilter("\"Estado\" = 'Pendiente'");
 
                     b.ToTable("Pagos", (string)null);
                 });
@@ -543,14 +578,6 @@ namespace Cinemax.Backend.Migrations
 
                     b.Property<DateOnly>("FechaEstreno")
                         .HasColumnType("date");
-
-                    b.Property<string>("ImagenUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("PosterUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Sinopsis")
                         .IsRequired()
@@ -581,10 +608,6 @@ namespace Cinemax.Backend.Migrations
 
                     b.Property<bool>("Eliminado")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("ImagenUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -625,91 +648,6 @@ namespace Cinemax.Backend.Migrations
                         .IsUnique();
 
                     b.ToTable("PersonasPeliculas", (string)null);
-                });
-
-            modelBuilder.Entity("Cinemax.Backend.Models.Producto", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CategoriaId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("Eliminado")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<decimal>("PrecioCompra")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("PrecioVenta")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("Stock")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StockMinimo")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoriaId");
-
-                    b.ToTable("Productos", (string)null);
-                });
-
-            modelBuilder.Entity("Cinemax.Backend.Models.Proveedor", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CUIT")
-                        .IsRequired()
-                        .HasMaxLength(13)
-                        .HasColumnType("character varying(13)");
-
-                    b.Property<string>("Direccion")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<bool>("Eliminado")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
-
-                    b.Property<string>("RazonSocial")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("Telefono")
-                        .IsRequired()
-                        .HasMaxLength(13)
-                        .HasColumnType("character varying(13)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CUIT")
-                        .IsUnique();
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.ToTable("Proveedores", (string)null);
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Sala", b =>
@@ -778,10 +716,6 @@ namespace Cinemax.Backend.Migrations
 
                     b.Property<bool>("Eliminado")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("ImagenUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -860,6 +794,9 @@ namespace Cinemax.Backend.Migrations
                     b.Property<DateTime?>("FechaExpiracion")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("FuncionId")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("Total")
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
@@ -871,7 +808,11 @@ namespace Cinemax.Backend.Migrations
 
                     b.HasIndex("ClienteId");
 
+                    b.HasIndex("FuncionId");
+
                     b.HasIndex("UsuarioId");
+
+                    b.HasIndex("Estado", "FechaExpiracion");
 
                     b.ToTable("Ventas", null, t =>
                         {
@@ -931,40 +872,67 @@ namespace Cinemax.Backend.Migrations
                     b.Navigation("Snack");
                 });
 
-            modelBuilder.Entity("Cinemax.Backend.Models.DetalleIngreso", b =>
+            modelBuilder.Entity("Cinemax.Backend.Models.ConsumoStockVenta", b =>
                 {
-                    b.HasOne("Cinemax.Backend.Models.Ingreso", "Ingreso")
-                        .WithMany("DetallesIngresos")
-                        .HasForeignKey("IngresoId")
+                    b.HasOne("Cinemax.Backend.Models.Snack", null)
+                        .WithMany()
+                        .HasForeignKey("SnackId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Cinemax.Backend.Models.Producto", "Producto")
-                        .WithMany("DetallesIngresos")
-                        .HasForeignKey("ProductoId")
+                    b.HasOne("Cinemax.Backend.Models.Venta", null)
+                        .WithMany("ConsumosStock")
+                        .HasForeignKey("VentaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("Ingreso");
-
-                    b.Navigation("Producto");
                 });
 
-            modelBuilder.Entity("Cinemax.Backend.Models.DetalleVenta", b =>
+            modelBuilder.Entity("Cinemax.Backend.Models.DetalleVentaSnack", b =>
                 {
-                    b.HasOne("Cinemax.Backend.Models.Producto", "Producto")
-                        .WithMany("DetallesVentas")
-                        .HasForeignKey("ProductoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                    b.HasOne("Cinemax.Backend.Models.Combo", "Combo")
+                        .WithMany()
+                        .HasForeignKey("ComboId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Cinemax.Backend.Models.Snack", "Snack")
+                        .WithMany()
+                        .HasForeignKey("SnackId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Cinemax.Backend.Models.Venta", "Venta")
-                        .WithMany("DetallesVentas")
+                        .WithMany("Snacks")
                         .HasForeignKey("VentaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Producto");
+                    b.Navigation("Combo");
+
+                    b.Navigation("Snack");
+
+                    b.Navigation("Venta");
+                });
+
+            modelBuilder.Entity("Cinemax.Backend.Models.EntradaVenta", b =>
+                {
+                    b.HasOne("Cinemax.Backend.Models.Butaca", "Butaca")
+                        .WithMany()
+                        .HasForeignKey("ButacaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cinemax.Backend.Models.Funcion", null)
+                        .WithMany()
+                        .HasForeignKey("FuncionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cinemax.Backend.Models.Venta", "Venta")
+                        .WithMany("Entradas")
+                        .HasForeignKey("VentaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Butaca");
 
                     b.Navigation("Venta");
                 });
@@ -1013,32 +981,33 @@ namespace Cinemax.Backend.Migrations
 
             modelBuilder.Entity("Cinemax.Backend.Models.Imagen", b =>
                 {
-                    b.HasOne("Cinemax.Backend.Models.Producto", "Producto")
+                    b.HasOne("Cinemax.Backend.Models.Combo", "Combo")
                         .WithOne("Imagen")
-                        .HasForeignKey("Cinemax.Backend.Models.Imagen", "ProductoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("Cinemax.Backend.Models.Imagen", "ComboId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
-                    b.Navigation("Producto");
-                });
+                    b.HasOne("Cinemax.Backend.Models.Pelicula", "Pelicula")
+                        .WithMany("Imagenes")
+                        .HasForeignKey("PeliculaId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
-            modelBuilder.Entity("Cinemax.Backend.Models.Ingreso", b =>
-                {
-                    b.HasOne("Cinemax.Backend.Models.Proveedor", "Proveedor")
-                        .WithMany("Ingresos")
-                        .HasForeignKey("ProveedorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                    b.HasOne("Cinemax.Backend.Models.Persona", "Persona")
+                        .WithOne("Imagen")
+                        .HasForeignKey("Cinemax.Backend.Models.Imagen", "PersonaId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
-                    b.HasOne("Cinemax.Backend.Models.Usuario", "Usuario")
-                        .WithMany("Ingresos")
-                        .HasForeignKey("UsuarioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                    b.HasOne("Cinemax.Backend.Models.Snack", "Snack")
+                        .WithOne("Imagen")
+                        .HasForeignKey("Cinemax.Backend.Models.Imagen", "SnackId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
-                    b.Navigation("Proveedor");
+                    b.Navigation("Combo");
 
-                    b.Navigation("Usuario");
+                    b.Navigation("Pelicula");
+
+                    b.Navigation("Persona");
+
+                    b.Navigation("Snack");
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Inventario", b =>
@@ -1082,17 +1051,6 @@ namespace Cinemax.Backend.Migrations
                     b.Navigation("Persona");
                 });
 
-            modelBuilder.Entity("Cinemax.Backend.Models.Producto", b =>
-                {
-                    b.HasOne("Cinemax.Backend.Models.Categoria", "Categoria")
-                        .WithMany("Productos")
-                        .HasForeignKey("CategoriaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Categoria");
-                });
-
             modelBuilder.Entity("Cinemax.Backend.Models.SesionUsuario", b =>
                 {
                     b.HasOne("Cinemax.Backend.Models.Usuario", "Usuario")
@@ -1111,6 +1069,11 @@ namespace Cinemax.Backend.Migrations
                         .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Cinemax.Backend.Models.Funcion", "Funcion")
+                        .WithMany()
+                        .HasForeignKey("FuncionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cinemax.Backend.Models.Usuario", "Usuario")
                         .WithMany("Ventas")
                         .HasForeignKey("UsuarioId")
@@ -1118,12 +1081,9 @@ namespace Cinemax.Backend.Migrations
 
                     b.Navigation("Cliente");
 
-                    b.Navigation("Usuario");
-                });
+                    b.Navigation("Funcion");
 
-            modelBuilder.Entity("Cinemax.Backend.Models.Categoria", b =>
-                {
-                    b.Navigation("Productos");
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Cliente", b =>
@@ -1134,16 +1094,13 @@ namespace Cinemax.Backend.Migrations
             modelBuilder.Entity("Cinemax.Backend.Models.Combo", b =>
                 {
                     b.Navigation("Componentes");
+
+                    b.Navigation("Imagen");
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Genero", b =>
                 {
                     b.Navigation("Peliculas");
-                });
-
-            modelBuilder.Entity("Cinemax.Backend.Models.Ingreso", b =>
-                {
-                    b.Navigation("DetallesIngresos");
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Pelicula", b =>
@@ -1152,26 +1109,16 @@ namespace Cinemax.Backend.Migrations
 
                     b.Navigation("Generos");
 
+                    b.Navigation("Imagenes");
+
                     b.Navigation("Personas");
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Persona", b =>
                 {
-                    b.Navigation("Peliculas");
-                });
-
-            modelBuilder.Entity("Cinemax.Backend.Models.Producto", b =>
-                {
-                    b.Navigation("DetallesIngresos");
-
-                    b.Navigation("DetallesVentas");
-
                     b.Navigation("Imagen");
-                });
 
-            modelBuilder.Entity("Cinemax.Backend.Models.Proveedor", b =>
-                {
-                    b.Navigation("Ingresos");
+                    b.Navigation("Peliculas");
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Sala", b =>
@@ -1185,6 +1132,8 @@ namespace Cinemax.Backend.Migrations
                 {
                     b.Navigation("Combos");
 
+                    b.Navigation("Imagen");
+
                     b.Navigation("Inventario")
                         .IsRequired();
                 });
@@ -1195,16 +1144,18 @@ namespace Cinemax.Backend.Migrations
 
                     b.Navigation("Cliente");
 
-                    b.Navigation("Ingresos");
-
                     b.Navigation("Ventas");
                 });
 
             modelBuilder.Entity("Cinemax.Backend.Models.Venta", b =>
                 {
-                    b.Navigation("DetallesVentas");
+                    b.Navigation("ConsumosStock");
+
+                    b.Navigation("Entradas");
 
                     b.Navigation("Pagos");
+
+                    b.Navigation("Snacks");
                 });
 #pragma warning restore 612, 618
         }

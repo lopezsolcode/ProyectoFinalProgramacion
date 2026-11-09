@@ -179,9 +179,6 @@ namespace Cinemax.Backend.Services
             return await ObtenerPorId(ventaId);
         }
 
-
-        [HttpPost("online")]
-        [Authorize(Roles = "Cliente")]
         public async Task<VentaResponse> CrearCompraOnline(CrearCompraOnlineRequest dto, int usuarioId)
         {
             Cliente cliente = await _clienteRepo.ObtenerPorUsuarioId(usuarioId)

@@ -1,0 +1,120 @@
+@inherits PosComponentBase
+
+<MudStack Spacing="3">
+    <MudText Typo="Typo.h6">Cobro</MudText>
+
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudText Typo="Typo.caption">Total a cobrar</MudText>
+        <MudText Typo="Typo.h4" Color="Color.Primary">@PosFormato.Moneda(Estado.Total)</MudText>
+    </MudPaper>
+
+    <MudSelect T="MetodoPago"
+               @bind-Value="_metodo"
+               Label="Método de pago"
+               Variant="Variant.Outlined">
+        @foreach (MetodoPago m in Enum.GetValues<MetodoPago>())
+        {
+            <MudSelectItem T="MetodoPago" Value="m">@m</MudSelectItem>
+        }
+    </MudSelect>
+
+    @if (_metodo == MetodoPago.Efectivo)
+    {
+        <MudNumericField T="decimal?"
+                         @bind-Value="_recibido"
+                         Label="Efectivo recibido (opcional)"
+                         Variant="Variant.Outlined"
+                         Min="0"
+                         Immediate="true" />
+
+        @if (_recibido is not null)
+        {
+            decimal vuelto = _recibido.Value - Estado.Total;
+
+            if (vuelto >= 0)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true">Vuelto: @PosFormato.Moneda(vuelto)</MudAlert>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">Faltan @PosFormato.Moneda(-vuelto)</MudAlert>
+            }
+        }
+    }
+    else
+    {
+        <MudTextField T="string"
+                      @bind-Value="_referencia"
+                      Label="Referencia del pago (opcional)"
+                      Variant="Variant.Outlined"
+                      MaxLength="100" />
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Error">@_error</MudAlert>
+    }
+
+    <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+        <MudButton Variant="Variant.Text" Disabled="@_procesando" OnClick="@(() => Estado.IrA(PasoPos.Snacks))">
+            Volver a los snacks
+        </MudButton>
+
+        @if (Estado.Butacas.Count > 0)
+        {
+            <MudButton Variant="Variant.Text" Disabled="@_procesando" OnClick="@(() => Estado.IrA(PasoPos.Butacas))">
+                Revisar butacas
+            </MudButton>
+        }
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   Disabled="@(_procesando || !Estado.HayItems)"
+                   OnClick="Confirmar">
+            @(_procesando ? "Registrando..." : "Confirmar venta")
+        </MudButton>
+    </MudStack>
+</MudStack>
+
+@code {
+    private MetodoPago _metodo = MetodoPago.Efectivo;
+    private decimal? _recibido;
+    private string? _referencia;
+    private string? _error;
+    private bool _procesando;
+
+    private async Task Confirmar()
+    {
+        if (_procesando || !Estado.HayItems) return;
+
+        _procesando = true;
+        _error = null;
+
+        try
+        {
+            bool conEntradas = Estado.Butacas.Count > 0 && Estado.Funcion is not null;
+
+            CrearVentaPresencialRequest request = new(
+                conEntradas ? Estado.Funcion!.Id : null,
+                conEntradas ? Estado.Butacas.Select(b => b.Id).ToList() : new List<int>(),
+                Estado.Lineas.Select(l => new VentaSnackItemRequest(l.SnackId, l.ComboId, l.Cantidad)).ToList(),
+                _metodo,
+                _metodo == MetodoPago.Efectivo || string.IsNullOrWhiteSpace(_referencia) ? null : _referencia.Trim(),
+                null);
+
+            VentaResponse venta = await Api.CrearVenta(request);
+
+            Estado.Finalizar(venta);
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            _error = Mensaje(e, "No se pudo registrar la venta. Verificá la conexión con el servidor.");
+        }
+        finally
+        {
+            _procesando = false;
+        }
+    }
+}

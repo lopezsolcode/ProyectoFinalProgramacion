@@ -4,6 +4,8 @@ using Cinemax.Shared.DTO.Comun;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Cinemax.Backend.Utilidades;
+using Cinemax.Backend.Excepciones;
+
 namespace Cinemax.Backend.Controllers
 {
     [ApiController]
@@ -28,9 +30,14 @@ namespace Cinemax.Backend.Controllers
             int id,
             [FromForm] IFormFile archivo)
         {
-            Imagen imagen = await _imagenService.SubirImagenSnack(id, archivo);
 
-            return Ok(_mapeador.Mapear(imagen));
+            try
+            {
+                Imagen imagen = await _imagenService.SubirImagenSnack(id, archivo);
+                return Ok(_mapeador.Mapear(imagen));
+            }
+            catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
+            catch (RecursoNoExisteException e) { return NotFound(e.Message); }
         }
 
         // POST: api/imagenes/combos/5
@@ -40,9 +47,14 @@ namespace Cinemax.Backend.Controllers
             int id,
             [FromForm] IFormFile archivo)
         {
-            Imagen imagen = await _imagenService.SubirImagenCombo(id, archivo);
+            try 
+            {
+                Imagen imagen = await _imagenService.SubirImagenCombo(id, archivo);
+                return Ok(_mapeador.Mapear(imagen)); ;
+            }
+            catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
+            catch (RecursoNoExisteException e) { return NotFound(e.Message); }
 
-            return Ok(_mapeador.Mapear(imagen)); ;
         }
 
         // POST: api/imagenes/personas/5
@@ -52,9 +64,15 @@ namespace Cinemax.Backend.Controllers
             int id,
             [FromForm] IFormFile archivo)
         {
-            Imagen imagen = await _imagenService.SubirImagenPersona(id, archivo);
+            try 
+            {
+                Imagen imagen = await _imagenService.SubirImagenPersona(id, archivo);
+                return Ok(_mapeador.Mapear(imagen)); ;
+            }
+            catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
+            catch (RecursoNoExisteException e) { return NotFound(e.Message); }
 
-            return Ok(_mapeador.Mapear(imagen)); ;
+
         }
 
         // POST: api/imagenes/peliculas/5/principal
@@ -64,11 +82,17 @@ namespace Cinemax.Backend.Controllers
             int id,
             [FromForm] IFormFile archivo)
         {
-            Imagen imagen = await _imagenService.SubirImagenPrincipalPelicula(
-                id,
-                archivo);
+            try
+            {
 
-            return Ok(_mapeador.Mapear(imagen)); ;
+                Imagen imagen = await _imagenService.SubirImagenPrincipalPelicula(
+                    id,
+                    archivo);
+
+                return Ok(_mapeador.Mapear(imagen)); ;
+            }
+            catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
+            catch (RecursoNoExisteException e) { return NotFound(e.Message); }
         }
 
         // POST: api/imagenes/peliculas/5/poster
@@ -78,11 +102,16 @@ namespace Cinemax.Backend.Controllers
             int id,
             [FromForm] IFormFile archivo)
         {
-            Imagen imagen = await _imagenService.SubirPosterPelicula(
-                id,
-                archivo);
+            try 
+            {
+                Imagen imagen = await _imagenService.SubirPosterPelicula(
+                    id,
+                    archivo);
 
-            return Ok(_mapeador.Mapear(imagen)); ;
+                return Ok(_mapeador.Mapear(imagen)); ;
+            }
+            catch (DatosLlegaronErradosException e) { return BadRequest(e.Message); }
+            catch (RecursoNoExisteException e) { return NotFound(e.Message); }
         }
     }
 }

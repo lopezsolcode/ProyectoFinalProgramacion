@@ -172,7 +172,7 @@ public class VentasController : ControllerBase
     }
     // Este se va a usar para mostrar las ventas individuales en la web
     [HttpGet("{id:int}/pdf")]
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = "Administrador, Cajero")]
     public async Task<IActionResult> MostrarTicketAdmin(int id)
     {
         try

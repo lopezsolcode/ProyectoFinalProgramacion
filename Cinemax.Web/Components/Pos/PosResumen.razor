@@ -1,0 +1,122 @@
+@inherits PosComponentBase
+
+<MudPaper Elevation="2" Class="pa-4" Style="position: sticky; top: 16px;">
+    <MudText Typo="Typo.h6" GutterBottom="true">Detalle de la venta</MudText>
+
+    @if (!Estado.HayItems && Estado.Pelicula is null)
+    {
+        <MudText Typo="Typo.body2">Todavía no hay nada en la venta.</MudText>
+    }
+
+    @if (Estado.Pelicula is not null)
+    {
+        <MudText Typo="Typo.subtitle2">@Estado.Pelicula.Titulo</MudText>
+
+        @if (Estado.Funcion is not null)
+        {
+            <MudText Typo="Typo.caption" Class="d-block">
+                @PosFormato.DiaHora(Estado.Funcion.FechaHora), Sala @Estado.Funcion.SalaNumero, @Estado.Funcion.Formato, @Estado.Funcion.Idioma
+            </MudText>
+
+            @if (Estado.Butacas.Count == 0)
+            {
+                <MudText Typo="Typo.caption" Class="d-block">Todavía no elegiste butacas.</MudText>
+            }
+        }
+
+        @if (Estado.Butacas.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-2">Entradas (@Estado.Butacas.Count)</MudText>
+
+            @foreach (ButacaFuncionResponse b in Estado.Butacas.OrderBy(x => x.Fila).ThenBy(x => x.Numero))
+            {
+                <MudStack @key="b.Id" Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <MudText Typo="Typo.body2">Butaca @($"{b.Fila}{b.Numero}")</MudText>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <MudText Typo="Typo.body2">@PosFormato.Moneda(Estado.Funcion!.PrecioEntrada)</MudText>
+                        @if (Editable)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                           Size="Size.Small"
+                                           Title="Quitar butaca"
+                                           OnClick="@(() => Estado.QuitarButaca(b.Id))" />
+                        }
+                    </MudStack>
+                </MudStack>
+            }
+        }
+
+        <MudDivider Class="my-3" />
+    }
+
+    @if (Estado.Lineas.Count > 0)
+    {
+        <MudText Typo="Typo.subtitle2">Snacks y combos</MudText>
+
+        @foreach (LineaSnackPos l in Estado.Lineas)
+        {
+            <div @key="l" class="mb-2">
+                <MudStack Row="true" Justify="Justify.SpaceBetween">
+                    <MudText Typo="Typo.body2">@l.Nombre</MudText>
+                    <MudText Typo="Typo.body2">@PosFormato.Moneda(l.Subtotal)</MudText>
+                </MudStack>
+
+                @if (Editable)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Title="Quitar una unidad"
+                                       OnClick="@(() => Estado.CambiarCantidad(l, -1))" />
+                        <MudText Typo="Typo.body2">@l.Cantidad</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Title="Agregar una unidad"
+                                       OnClick="@(() => Estado.CambiarCantidad(l, 1))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Title="Quitar del detalle"
+                                       OnClick="@(() => Estado.QuitarLinea(l))" />
+                    </MudStack>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption">@l.Cantidad x @PosFormato.Moneda(l.PrecioUnitario)</MudText>
+                }
+            </div>
+        }
+
+        <MudDivider Class="my-3" />
+    }
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.body2">Entradas</MudText>
+        <MudText Typo="Typo.body2">@PosFormato.Moneda(Estado.TotalEntradas)</MudText>
+    </MudStack>
+    <MudStack Row="true" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.body2">Snacks y combos</MudText>
+        <MudText Typo="Typo.body2">@PosFormato.Moneda(Estado.TotalSnacks)</MudText>
+    </MudStack>
+    <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-2">
+        <MudText Typo="Typo.h6">Total</MudText>
+        <MudText Typo="Typo.h6" Color="Color.Primary">@PosFormato.Moneda(Estado.Total)</MudText>
+    </MudStack>
+
+    @if (Editable)
+    {
+        <MudButton FullWidth="true"
+                   Variant="Variant.Filled"
+                   Color="Color.Success"
+                   Class="mt-3"
+                   Disabled="@(!Estado.HayItems || Estado.Paso == PasoPos.Cobro)"
+                   OnClick="@(() => Estado.IrA(PasoPos.Cobro))">
+            Cobrar
+        </MudButton>
+
+        <MudButton FullWidth="true"
+                   Variant="Variant.Text"
+                   Class="mt-1"
+                   Disabled="@(!Estado.HayItems && Estado.Pelicula is null)"
+                   OnClick="Estado.Reiniciar">
+            Vaciar venta
+        </MudButton>
+    }
+</MudPaper>
+
+@code {
+    private bool Editable => Estado.Paso != PasoPos.Finalizada;
+}
