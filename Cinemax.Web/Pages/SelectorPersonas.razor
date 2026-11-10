@@ -1,0 +1,134 @@
+@using System.Text.Json
+@using Cinemax.Shared.DTO.Comun
+@using Cinemax.Shared.DTO.Persona.Response
+@using Cinemax.Web.Services
+@inject PersonaService PersonaService
+
+<MudStack Spacing="2">
+    <MudText Typo="Typo.subtitle2">@Titulo</MudText>
+
+    @if (Seleccionadas.Count > 0)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (ReferenciaResponse p in Seleccionadas)
+            {
+                <MudButton @key="p.Id"
+                           Size="Size.Small"
+                           Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           EndIcon="@Icons.Material.Filled.Close"
+                           Title="Quitar"
+                           OnClick="@(() => Quitar(p))">
+                    @p.Nombre
+                </MudButton>
+            }
+        </div>
+    }
+    else
+    {
+        <MudText Typo="Typo.caption">Ninguno seleccionado.</MudText>
+    }
+
+    <MudTextField T="string"
+                  @bind-Value="_texto"
+                  Label="@($"Buscar para agregar ({Titulo.ToLower()})")"
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true"
+                  DebounceInterval="350"
+                  OnDebounceIntervalElapsed="Buscar" />
+
+    @if (_buscando)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true">@_error</MudAlert>
+    }
+    else if (_resultados.Count > 0)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (PersonaResponse r in _resultados)
+            {
+                <MudButton @key="r.Id"
+                           Size="Size.Small"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => Agregar(r))">
+                    @r.Nombre
+                </MudButton>
+            }
+        </div>
+    }
+    else if (!_buscando && !string.IsNullOrWhiteSpace(_textoAplicado))
+    {
+        <MudText Typo="Typo.caption">No se encontraron personas con ese nombre. Podés crearlas desde Personas, en el menú de administración.</MudText>
+    }
+</MudStack>
+
+@code {
+    [Parameter]
+    public string Titulo { get; set; } = string.Empty;
+
+    // La lista es del formulario padre: este componente solo la modifica.
+    [Parameter]
+    public List<ReferenciaResponse> Seleccionadas { get; set; } = new();
+
+    private List<PersonaResponse> _resultados = new();
+    private string? _texto;
+    private string? _textoAplicado;
+    private string? _error;
+    private bool _buscando;
+    private int _solicitud;
+
+    private async Task Buscar(string? texto)
+    {
+        _textoAplicado = texto?.Trim();
+        int solicitud = ++_solicitud;
+
+        if (string.IsNullOrWhiteSpace(_textoAplicado))
+        {
+            _resultados = new();
+            _error = null;
+            _buscando = false;
+            return;
+        }
+
+        _buscando = true;
+        _error = null;
+
+        try
+        {
+            List<PersonaResponse> encontradas = await PersonaService.Buscar(_textoAplicado);
+
+            if (solicitud != _solicitud) return;
+
+            _resultados = encontradas
+                .Where(p => Seleccionadas.All(s => s.Id != p.Id))
+                .ToList();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            if (solicitud == _solicitud)
+                _error = "No se pudo buscar personas. Verificá la conexión con el servidor.";
+        }
+        finally
+        {
+            if (solicitud == _solicitud) _buscando = false;
+        }
+    }
+
+    private void Agregar(PersonaResponse persona)
+    {
+        if (Seleccionadas.All(s => s.Id != persona.Id))
+            Seleccionadas.Add(new ReferenciaResponse(persona.Id, persona.Nombre));
+
+        _resultados.Remove(persona);
+    }
+
+    private void Quitar(ReferenciaResponse persona) => Seleccionadas.Remove(persona);
+}

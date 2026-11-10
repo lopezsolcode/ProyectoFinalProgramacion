@@ -1,0 +1,392 @@
+@page "/peliculas"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using Cinemax.Shared.DTO.Genero.Response
+@using Cinemax.Shared.DTO.Paginado.Request.Pelicula
+@using Cinemax.Shared.DTO.Paginado.Response
+@using Cinemax.Shared.DTO.Pelicula.Response
+@using Cinemax.Web.Services
+
+@inject PeliculaService PeliculaService
+@inject GeneroService GeneroService
+@inject NavigationManager Navigation
+
+<PageTitle>Películas</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+
+    <MudText Typo="Typo.h4" GutterBottom="true">Administración de películas</MudText>
+
+    <MudText Typo="Typo.body2" Color="Color.Primary" Class="mb-4">
+        Consultá, buscá y administrá las películas del cine.
+    </MudText>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudGrid Spacing="3">
+
+            <MudItem xs="12" md="4">
+                <MudTextField T="string"
+                              Label="Buscar película"
+                              Placeholder="Título..."
+                              @bind-Value="busqueda"
+                              Immediate="true"
+                              Clearable="true"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudSelect T="int?"
+                           Label="Género"
+                           @bind-Value="generoSeleccionado"
+                           Clearable="true"
+                           Variant="Variant.Outlined">
+                    @foreach (var genero in generos)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)genero.Id)">@genero.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudSelect T="bool?"
+                           Label="Cartelera"
+                           @bind-Value="enCartelera"
+                           Clearable="true"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="bool?" Value="@((bool?)true)">En cartelera</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)false)">Fuera de cartelera</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudSelect T="string"
+                           Label="Ordenar por"
+                           @bind-Value="ordenarPor"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("id")">ID</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("titulo")">Título</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("estreno")">Estreno</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("duracion")">Duración</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Sort"
+                           FullWidth="true"
+                           Class="mt-2"
+                           OnClick="CambiarDireccion">
+                    @(direccion == "asc" ? "Ascendente" : "Descendente")
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           FullWidth="true"
+                           OnClick="Buscar">
+                    Buscar
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.FilterAltOff"
+                           FullWidth="true"
+                           OnClick="LimpiarFiltros">
+                    Limpiar filtros
+                </MudButton>
+            </MudItem>
+
+        </MudGrid>
+    </MudPaper>
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.body2">
+            @if (resultado is not null)
+            {
+                <span>Total de películas: @resultado.TotalRegistros</span>
+            }
+        </MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="Crear">
+            Nueva película
+        </MudButton>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando películas...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@error</MudAlert>
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="CargarPeliculas">
+            Reintentar
+        </MudButton>
+    }
+    else if (resultado is not null)
+    {
+        <MudTable T="PeliculaListadoResponse"
+                  Items="@resultado.Datos"
+                  Hover="true"
+                  Striped="true"
+                  Bordered="true"
+                  Dense="true"
+                  Elevation="1">
+
+            <HeaderContent>
+                <MudTh>ID</MudTh>
+                <MudTh>Título</MudTh>
+                <MudTh>Clasificación</MudTh>
+                <MudTh>Estreno</MudTh>
+                <MudTh>Duración</MudTh>
+                <MudTh>Cartelera</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="ID">@context.Id</MudTd>
+                <MudTd DataLabel="Título">@context.Titulo</MudTd>
+                <MudTd DataLabel="Clasificación">@Etiquetas.DeClasificacion(context.Clasificacion)</MudTd>
+                <MudTd DataLabel="Estreno">@context.FechaEstreno.ToString("dd/MM/yyyy")</MudTd>
+                <MudTd DataLabel="Duración">@context.DuracionMinutos min</MudTd>
+                <MudTd DataLabel="Cartelera">@(context.EnCartelera ? "Sí" : "No")</MudTd>
+                <MudTd DataLabel="Acciones">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Title="Editar película"
+                                   OnClick="@(() => Editar(context.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Title="Eliminar película"
+                                   OnClick="@(() => SolicitarEliminacion(context))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No se encontraron películas.</MudText>
+            </NoRecordsContent>
+
+        </MudTable>
+
+        <MudPaper Elevation="0" Class="pa-3 mt-3">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaAnterior)"
+                           StartIcon="@Icons.Material.Filled.ChevronLeft"
+                           OnClick="PaginaAnterior">
+                    Anterior
+                </MudButton>
+
+                <MudText Typo="Typo.body2">
+                    Página @resultado.NumeroPagina de @resultado.TotalPaginas
+                </MudText>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaPosterior)"
+                           EndIcon="@Icons.Material.Filled.ChevronRight"
+                           OnClick="PaginaSiguiente">
+                    Siguiente
+                </MudButton>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (peliculaAEliminar is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-4">
+            <MudText Typo="Typo.subtitle1">
+                ¿Querés eliminar la película "@peliculaAEliminar.Titulo"?
+            </MudText>
+
+            <MudStack Row="true" Class="mt-3">
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Filled"
+                           Disabled="@eliminando"
+                           OnClick="ConfirmarEliminacion">
+                    Sí, eliminar
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@eliminando"
+                           OnClick="CancelarEliminacion">
+                    Cancelar
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <MudAlert Severity="@tipoMensaje" Class="mt-4" ShowCloseIcon="true">@mensaje</MudAlert>
+    }
+
+</MudContainer>
+
+@code {
+    private List<GeneroResponse> generos = new();
+
+    private PaginadoResponseDto<PeliculaListadoResponse>? resultado;
+
+    private string? busqueda;
+    private int? generoSeleccionado;
+    private bool? enCartelera;
+    private string ordenarPor = "id";
+    private string direccion = "asc";
+
+    private bool cargando;
+    private bool eliminando;
+    private string? error;
+    private string? mensaje;
+    private Severity tipoMensaje = Severity.Info;
+
+    private PeliculaListadoResponse? peliculaAEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            generos = await GeneroService.ObtenerGeneros();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            // El filtro por género es opcional: si falla, el listado igual se carga.
+            generos = new();
+        }
+
+        await CargarPeliculas();
+    }
+
+    private async Task CargarPeliculas()
+    {
+        cargando = true;
+        error = null;
+
+        try
+        {
+            var parametros = new ParametroPaginacionPeliculaRequest
+            {
+                NumeroPagina = resultado?.NumeroPagina ?? 1,
+                TamanoPagina = 10,
+                Buscar = string.IsNullOrWhiteSpace(busqueda) ? null : busqueda.Trim(),
+                GeneroId = generoSeleccionado,
+                EnCartelera = enCartelera,
+                OrdenarPor = ordenarPor,
+                Direccion = direccion
+            };
+
+            resultado = await PeliculaService.ObtenerPeliculas(parametros);
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            error = e is InvalidOperationException
+                ? e.Message
+                : "No se pudieron cargar las películas. Verificá tu sesión y la conexión con el backend.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task Buscar()
+    {
+        mensaje = null;
+        resultado = PrimeraPagina();
+        await CargarPeliculas();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        busqueda = null;
+        generoSeleccionado = null;
+        enCartelera = null;
+        ordenarPor = "id";
+        direccion = "asc";
+        mensaje = null;
+
+        resultado = PrimeraPagina();
+        await CargarPeliculas();
+    }
+
+    private async Task CambiarDireccion()
+    {
+        direccion = direccion == "asc" ? "desc" : "asc";
+        await Buscar();
+    }
+
+    private static PaginadoResponseDto<PeliculaListadoResponse> PrimeraPagina() =>
+        new(1, 10, 0, 0, false, false, new());
+
+    private async Task PaginaAnterior()
+    {
+        if (resultado is null || !resultado.TienePaginaAnterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina - 1 };
+        await CargarPeliculas();
+    }
+
+    private async Task PaginaSiguiente()
+    {
+        if (resultado is null || !resultado.TienePaginaPosterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina + 1 };
+        await CargarPeliculas();
+    }
+
+    private void Crear() => Navigation.NavigateTo("/peliculas/nueva");
+
+    private void Editar(int id) => Navigation.NavigateTo($"/peliculas/editar/{id}");
+
+    private void SolicitarEliminacion(PeliculaListadoResponse pelicula)
+    {
+        peliculaAEliminar = pelicula;
+        mensaje = null;
+    }
+
+    private void CancelarEliminacion() => peliculaAEliminar = null;
+
+    private async Task ConfirmarEliminacion()
+    {
+        if (peliculaAEliminar is null) return;
+
+        eliminando = true;
+        mensaje = null;
+
+        try
+        {
+            await PeliculaService.Eliminar(peliculaAEliminar.Id);
+
+            mensaje = $"La película '{peliculaAEliminar.Titulo}' fue eliminada.";
+            tipoMensaje = Severity.Success;
+            peliculaAEliminar = null;
+
+            await CargarPeliculas();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            // Si el backend la rechaza (por ejemplo, tiene funciones futuras) se muestra su mensaje.
+            mensaje = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo eliminar la película. Verificá la conexión y tu sesión.";
+            tipoMensaje = Severity.Error;
+        }
+        finally
+        {
+            eliminando = false;
+        }
+    }
+}

@@ -1,0 +1,80 @@
+@using Cinemax.Shared.DTO.Comun
+@using Cinemax.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
+
+<MudStack Spacing="1">
+    <MudText Typo="Typo.subtitle2">@Titulo</MudText>
+
+    @if (Actual is not null)
+    {
+        <MudImage Src="@Actual.Url"
+                  Alt="@Titulo"
+                  Width="@Ancho"
+                  Height="@Alto"
+                  ObjectFit="ObjectFit.Contain" />
+    }
+    else
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Todavía no tiene imagen.</MudText>
+    }
+
+    <InputFile @key="_clave" OnChange="Seleccionar" accept=".jpg,.jpeg,.png" />
+
+    @if (Archivo is not null)
+    {
+        <MudText Typo="Typo.caption">Nueva imagen: @Archivo.Name (se sube al guardar)</MudText>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true">@_error</MudAlert>
+    }
+</MudStack>
+
+@code {
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public ImagenResponse? Actual { get; set; }
+    [Parameter] public IBrowserFile? Archivo { get; set; }
+    [Parameter] public EventCallback<IBrowserFile?> ArchivoChanged { get; set; }
+    [Parameter] public int Ancho { get; set; } = 160;
+    [Parameter] public int Alto { get; set; } = 220;
+
+    private string? _error;
+    private int _clave;
+    private bool _teniaArchivo;
+
+    protected override void OnParametersSet()
+    {
+        // Cuando el padre limpia el archivo (ya se subió), se reinicia el input para que no quede el nombre viejo.
+        if (_teniaArchivo && Archivo is null)
+        {
+            _clave++;
+        }
+
+        _teniaArchivo = Archivo is not null;
+    }
+
+    private async Task Seleccionar(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        IBrowserFile archivo = e.File;
+
+        if (archivo.Size > PeliculaService.MaxBytesImagen)
+        {
+            _error = "La imagen no puede superar los 5 MB.";
+            await ArchivoChanged.InvokeAsync(null);
+            return;
+        }
+
+        string extension = Path.GetExtension(archivo.Name).ToLowerInvariant();
+
+        if (extension is not ".jpg" and not ".jpeg" and not ".png")
+        {
+            _error = "Solo se permiten imágenes JPG, JPEG o PNG.";
+            await ArchivoChanged.InvokeAsync(null);
+            return;
+        }
+
+        await ArchivoChanged.InvokeAsync(archivo);
+    }
+}

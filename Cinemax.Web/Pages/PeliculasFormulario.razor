@@ -1,0 +1,366 @@
+@page "/peliculas/nueva"
+@page "/peliculas/editar/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using System.Text.Json
+@using Cinemax.Shared.DTO.Comun
+@using Cinemax.Shared.DTO.Genero.Response
+@using Cinemax.Shared.DTO.Pelicula.Request
+@using Cinemax.Shared.DTO.Pelicula.Response
+@using Cinemax.Shared.Enums
+@using Cinemax.Web.Components
+@using Cinemax.Web.Services
+
+@inject PeliculaService PeliculaService
+@inject GeneroService GeneroService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@Titulo</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6 mb-6">
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Color="Color.Default"
+                       Title="Volver al listado"
+                       OnClick="Volver" />
+
+        <MudText Typo="Typo.h4">@Titulo</MudText>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando datos...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorCarga))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorCarga</MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Volver">Volver al listado</MudButton>
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="pa-5">
+            <MudStack Spacing="3">
+
+                <MudTextField T="string"
+                              Label="Título"
+                              @bind-Value="titulo"
+                              MaxLength="200"
+                              Variant="Variant.Outlined" />
+
+                <MudTextField T="string"
+                              Label="Sinopsis"
+                              @bind-Value="sinopsis"
+                              MaxLength="2000"
+                              Lines="4"
+                              Variant="Variant.Outlined" />
+
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="Clasificacion"
+                                   Label="Clasificación"
+                                   @bind-Value="clasificacion"
+                                   Variant="Variant.Outlined">
+                            @foreach (Clasificacion c in Enum.GetValues<Clasificacion>())
+                            {
+                                <MudSelectItem T="Clasificacion" Value="c">@Etiquetas.DeClasificacion(c)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4">
+                        <MudDatePicker Label="Fecha de estreno"
+                                       @bind-Date="fechaEstreno"
+                                       Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4">
+                        <MudNumericField T="int"
+                                         Label="Duración (minutos)"
+                                         @bind-Value="duracion"
+                                         Min="1"
+                                         Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudSelect T="bool"
+                           Label="¿Está en cartelera?"
+                           @bind-Value="enCartelera"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="bool" Value="true">Sí, se puede vender</MudSelectItem>
+                    <MudSelectItem T="bool" Value="false">No (próximamente o fuera de cartelera)</MudSelectItem>
+                </MudSelect>
+
+                <MudDivider Class="my-1" />
+
+                <MudText Typo="Typo.subtitle2">Géneros</MudText>
+
+                @if (generosDisponibles.Count == 0)
+                {
+                    <MudText Typo="Typo.caption">No hay géneros cargados todavía.</MudText>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (GeneroResponse g in generosDisponibles)
+                        {
+                            <MudButton @key="g.Id"
+                                       Size="Size.Small"
+                                       Color="Color.Primary"
+                                       Variant="@(generosElegidos.Contains(g.Id) ? Variant.Filled : Variant.Outlined)"
+                                       OnClick="@(() => AlternarGenero(g.Id))">
+                                @g.Nombre
+                            </MudButton>
+                        }
+                    </div>
+                }
+
+                <MudDivider Class="my-1" />
+
+                <SelectorPersonas Titulo="Actores" Seleccionadas="actores" />
+
+                <SelectorPersonas Titulo="Directores" Seleccionadas="directores" />
+
+                <MudDivider Class="my-1" />
+
+                <MudText Typo="Typo.subtitle1">Imágenes</MudText>
+
+                @if (!_idActual.HasValue)
+                {
+                    <MudText Typo="Typo.caption">Las imágenes se suben después de crear la película.</MudText>
+                }
+
+                <MudGrid Spacing="4">
+                    <MudItem xs="12" sm="6">
+                        <SelectorImagen Titulo="Imagen principal"
+                                        Actual="imagenPrincipal"
+                                        @bind-Archivo="archivoPrincipal"
+                                        Ancho="260"
+                                        Alto="150" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <SelectorImagen Titulo="Póster"
+                                        Actual="poster"
+                                        @bind-Archivo="archivoPoster"
+                                        Ancho="130"
+                                        Alto="190" />
+                    </MudItem>
+                </MudGrid>
+
+                @if (!string.IsNullOrWhiteSpace(errorValidacion))
+                {
+                    <MudAlert Severity="Severity.Warning">@errorValidacion</MudAlert>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(error))
+                {
+                    <MudAlert Severity="Severity.Error">@error</MudAlert>
+                }
+
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+                    <MudButton Variant="Variant.Outlined" Disabled="@guardando" OnClick="Volver">
+                        Cancelar
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               Disabled="@guardando"
+                               OnClick="Guardar">
+                        @(guardando
+                            ? "Guardando..."
+                            : _idActual.HasValue ? "Guardar cambios" : "Crear película")
+                    </MudButton>
+                </MudStack>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    // Id de la película que se está editando. En una creación se completa apenas el backend la crea,
+    // así un reintento (por ejemplo, si falló la subida de una imagen) actualiza en vez de duplicar.
+    private int? _idActual;
+
+    private string Titulo => Id.HasValue ? "Modificar película" : "Nueva película";
+
+    private List<GeneroResponse> generosDisponibles = new();
+
+    private string titulo = string.Empty;
+    private string sinopsis = string.Empty;
+    private Clasificacion clasificacion = Clasificacion.ATP;
+    private DateTime? fechaEstreno = DateTime.Today;
+    private int duracion = 90;
+    private bool enCartelera = true;
+
+    private HashSet<int> generosElegidos = new();
+    private List<ReferenciaResponse> actores = new();
+    private List<ReferenciaResponse> directores = new();
+
+    private ImagenResponse? imagenPrincipal;
+    private ImagenResponse? poster;
+    private IBrowserFile? archivoPrincipal;
+    private IBrowserFile? archivoPoster;
+
+    private bool cargando = true;
+    private bool guardando;
+    private string? errorCarga;
+    private string? error;
+    private string? errorValidacion;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _idActual = Id;
+
+        try
+        {
+            generosDisponibles = await GeneroService.ObtenerGeneros();
+
+            if (Id.HasValue)
+            {
+                PeliculaResponse pelicula = await PeliculaService.ObtenerPelicula(Id.Value);
+
+                titulo = pelicula.Titulo;
+                sinopsis = pelicula.Sinopsis;
+                clasificacion = pelicula.Clasificacion;
+                fechaEstreno = pelicula.FechaEstreno.ToDateTime(TimeOnly.MinValue);
+                duracion = pelicula.DuracionMinutos;
+                enCartelera = pelicula.EnCartelera;
+                generosElegidos = pelicula.Generos.Select(g => g.Id).ToHashSet();
+                actores = pelicula.Actores.ToList();
+                directores = pelicula.Directores.ToList();
+                imagenPrincipal = pelicula.ImagenPrincipal;
+                poster = pelicula.Poster;
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            errorCarga = Id.HasValue
+                ? Mensaje(e, "No se pudo cargar la película. Verificá tu sesión y la conexión con el backend.")
+                : "No se pudieron cargar los géneros. Verificá tu sesión y la conexión con el backend.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void AlternarGenero(int generoId)
+    {
+        if (!generosElegidos.Remove(generoId))
+            generosElegidos.Add(generoId);
+    }
+
+    private string? Validar()
+    {
+        if (string.IsNullOrWhiteSpace(titulo)) return "El título es obligatorio.";
+        if (titulo.Trim().Length > 200) return "El título no puede superar 200 caracteres.";
+        if (string.IsNullOrWhiteSpace(sinopsis)) return "La sinopsis es obligatoria.";
+        if (sinopsis.Trim().Length > 2000) return "La sinopsis no puede superar 2000 caracteres.";
+        if (fechaEstreno is null) return "Indicá la fecha de estreno.";
+        if (duracion <= 0) return "La duración debe ser mayor a cero.";
+        return null;
+    }
+
+    private async Task Guardar()
+    {
+        if (guardando) return;
+
+        error = null;
+        errorValidacion = Validar();
+
+        if (errorValidacion is not null) return;
+
+        guardando = true;
+
+        try
+        {
+            DateOnly estreno = DateOnly.FromDateTime(fechaEstreno!.Value);
+            List<int> generosIds = generosElegidos.ToList();
+            List<int> actoresIds = actores.Select(a => a.Id).ToList();
+            List<int> directoresIds = directores.Select(d => d.Id).ToList();
+
+            if (_idActual.HasValue)
+            {
+                await PeliculaService.Actualizar(_idActual.Value, new ActualizarPeliculaRequest(
+                    titulo.Trim(), sinopsis.Trim(), clasificacion, estreno, duracion, enCartelera,
+                    generosIds, actoresIds, directoresIds));
+            }
+            else
+            {
+                PeliculaResponse creada = await PeliculaService.Crear(new CrearPeliculaRequest(
+                    titulo.Trim(), sinopsis.Trim(), clasificacion, estreno, duracion, enCartelera,
+                    generosIds, actoresIds, directoresIds));
+
+                _idActual = creada.Id;
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            error = Mensaje(e, "No se pudo guardar la película. Verificá los datos y tu sesión.");
+            guardando = false;
+            return;
+        }
+
+        // La película ya está guardada: ahora se suben las imágenes elegidas.
+        List<string> fallos = new();
+        int peliculaId = _idActual!.Value;
+
+        if (archivoPrincipal is not null)
+        {
+            try
+            {
+                imagenPrincipal = await PeliculaService.SubirImagenPrincipal(peliculaId, archivoPrincipal);
+                archivoPrincipal = null;
+            }
+            catch (Exception e) when (EsErrorEsperado(e))
+            {
+                fallos.Add($"la imagen principal ({Mensaje(e, "error de conexión")})");
+            }
+        }
+
+        if (archivoPoster is not null)
+        {
+            try
+            {
+                poster = await PeliculaService.SubirPoster(peliculaId, archivoPoster);
+                archivoPoster = null;
+            }
+            catch (Exception e) when (EsErrorEsperado(e))
+            {
+                fallos.Add($"el póster ({Mensaje(e, "error de conexión")})");
+            }
+        }
+
+        guardando = false;
+
+        if (fallos.Count > 0)
+        {
+            error = $"La película se guardó, pero no se pudo subir {string.Join(" ni ", fallos)}. " +
+                    "Volvé a elegir el archivo y guardá de nuevo.";
+            return;
+        }
+
+        Snackbar.Add(Id.HasValue ? "Película modificada." : "Película guardada.", Severity.Success);
+        Navigation.NavigateTo("/peliculas");
+    }
+
+    private static bool EsErrorEsperado(Exception e) =>
+        e is HttpRequestException or InvalidOperationException or JsonException;
+
+    private static string Mensaje(Exception e, string porDefecto) => e switch
+    {
+        InvalidOperationException => e.Message,
+        JsonException => "El servidor devolvió una respuesta inválida.",
+        _ => porDefecto
+    };
+
+    private void Volver() => Navigation.NavigateTo("/peliculas");
+}

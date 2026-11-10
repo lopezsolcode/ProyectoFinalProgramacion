@@ -22,5 +22,9 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
 builder.Services.AddScoped<VentasService>();
 builder.Services.AddScoped<PosService>();
 builder.Services.AddScoped<PosEstadoVenta>();
+builder.Services.AddScoped<PeliculaService>();
+builder.Services.AddScoped<GeneroService>();
+builder.Services.AddScoped<PersonaService>();
+
 
 await builder.Build().RunAsync();

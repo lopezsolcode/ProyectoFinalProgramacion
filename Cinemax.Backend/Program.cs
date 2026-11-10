@@ -1,12 +1,3 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.IdentityModel.Tokens;
-using Serilog;
-using System.Data.Common;
-using System.Security.Claims;
-using System.Text;
 using Cinemax.Backend.Data;
 using Cinemax.Backend.Implementacion;
 using Cinemax.Backend.Options;
@@ -14,6 +5,16 @@ using Cinemax.Backend.PasarelaSimulada.Pagos;
 using Cinemax.Backend.Repositories;
 using Cinemax.Backend.Services;
 using Cinemax.Backend.Utilidades;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
+using System.Data.Common;
+using System.Security.Claims;
+using System.Text;
 
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community; // se pone como loquita si no agrego esto
 
@@ -143,11 +144,25 @@ try
     Log.Information("WebRoot: {WebRoot} | ContentRoot: {ContentRoot}", webRoot, app.Environment.ContentRootPath);
 
     using (var scope = app.Services.CreateScope())
+    {
+        if (app.Environment.IsDevelopment())
         {
-            var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+            var context = scope.ServiceProvider
+                .GetRequiredService<DataContext>();
 
-            await SeedDatos.CrearAdministrador(context);
+            var layout = scope.ServiceProvider
+                .GetRequiredService<IOptions<SalaLayoutOptions>>().Value;
+
+            var funciones = scope.ServiceProvider
+                .GetRequiredService<IOptions<FuncionOptions>>().Value;
+
+            await SeedDatos.CrearDatosDemo(
+                context,
+                layout,
+                funciones.MargenLimpiezaMinutos);
         }
+    }
+
 
         app.UseExceptionHandler(exceptionHandlerApp =>
         {
@@ -214,7 +229,7 @@ try
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
-            app.MapOpenApi();
+          app.MapOpenApi();
         }
 
         app.UseHttpsRedirection();
