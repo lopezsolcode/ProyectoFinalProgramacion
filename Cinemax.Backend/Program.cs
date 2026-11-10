@@ -28,14 +28,15 @@ try
 {
     Log.Information("Iniciando aplicación Cinemax.Backend...");
     var builder = WebApplication.CreateBuilder(args);
-        builder.Host.UseSerilog((context, services, configuration) => configuration
-        .ReadFrom.Configuration(context.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext());
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .WriteTo.Console());
 
-        // Add services to the container.
-        // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-        builder.Services.AddOpenApi();
+    // Add services to the container.
+    // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+    builder.Services.AddOpenApi();
 
         builder.Services.AddControllers();
 
@@ -46,6 +47,9 @@ try
             .WithOrigins(origenes)
             .AllowAnyHeader()
             .AllowAnyMethod()));
+    Log.Information(
+    "Orígenes CORS permitidos: {Origenes}",
+    string.Join(", ", origenes));
 
     builder.Services.AddAuthorization();
 
@@ -245,7 +249,7 @@ try
         RequestPath = "/uploads"
     });
     app.UseAuthentication();
-        app.UseAuthorization();
+    app.UseAuthorization();
 
         app.MapControllers();
 
