@@ -1,0 +1,312 @@
+@page "/funciones/nueva"
+@page "/funciones/editar/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using System.Text.Json
+@using Cinemax.Shared.DTO.Funcion.Request
+@using Cinemax.Shared.DTO.Funcion.Response
+@using Cinemax.Shared.DTO.Pelicula.Response
+@using Cinemax.Shared.DTO.Sala.Response
+@using Cinemax.Shared.Enums
+@using Cinemax.Web.Services
+
+@inject FuncionService FuncionService
+@inject PeliculaService PeliculaService
+@inject SalaService SalaService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@Titulo</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-6 mb-6">
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Color="Color.Default"
+                       Title="Volver al listado"
+                       OnClick="Volver" />
+
+        <MudText Typo="Typo.h4">@Titulo</MudText>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando datos...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorCarga))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorCarga</MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Volver">Volver al listado</MudButton>
+    }
+    else if (peliculas.Count == 0 || salas.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            Para programar una función necesitás al menos una película y una sala cargadas.
+        </MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Volver">Volver al listado</MudButton>
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="pa-5">
+            <MudStack Spacing="3">
+
+                @if (Id.HasValue)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        Si la función ya tiene entradas vendidas o reservadas, solo se puede modificar el precio.
+                    </MudAlert>
+                }
+
+                <MudSelect T="int?"
+                           Label="Película"
+                           @bind-Value="peliculaId"
+                           Variant="Variant.Outlined">
+                    @foreach (PeliculaListadoResponse p in peliculas)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)p.Id)">@p.Titulo (@p.DuracionMinutos min)</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="int?"
+                           Label="Sala"
+                           @bind-Value="salaId"
+                           Variant="Variant.Outlined">
+                    @foreach (SalaResponse s in salas)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)s.Id)">Sala @s.Numero</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="FormatoFuncion"
+                                   Label="Formato"
+                                   @bind-Value="formato"
+                                   Variant="Variant.Outlined">
+                            @foreach (FormatoFuncion f in Enum.GetValues<FormatoFuncion>())
+                            {
+                                <MudSelectItem T="FormatoFuncion" Value="f">@Etiquetas.DeFormato(f)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="IdiomaFuncion"
+                                   Label="Idioma"
+                                   @bind-Value="idioma"
+                                   Variant="Variant.Outlined">
+                            @foreach (IdiomaFuncion i in Enum.GetValues<IdiomaFuncion>())
+                            {
+                                <MudSelectItem T="IdiomaFuncion" Value="i">@Etiquetas.DeIdioma(i)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Label="Fecha"
+                                       @bind-Date="fecha"
+                                       Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTimePicker Label="Hora de inicio (Argentina)"
+                                       @bind-Time="hora"
+                                       AmPm="false"
+                                       Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+
+                @if (DuracionElegida is int duracionPelicula)
+                {
+                    <MudText Typo="Typo.caption">
+                        La película dura @duracionPelicula min. El sistema agrega un margen de limpieza antes de la
+                        función siguiente y controla que no se superponga con otra de la misma sala.
+                    </MudText>
+                }
+
+                <MudNumericField T="decimal"
+                                 Label="Precio de la entrada"
+                                 @bind-Value="precio"
+                                 Min="0"
+                                 Format="N2"
+                                 Variant="Variant.Outlined" />
+
+                @if (!string.IsNullOrWhiteSpace(errorValidacion))
+                {
+                    <MudAlert Severity="Severity.Warning">@errorValidacion</MudAlert>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(error))
+                {
+                    <MudAlert Severity="Severity.Error">@error</MudAlert>
+                }
+
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+                    <MudButton Variant="Variant.Outlined" Disabled="@guardando" OnClick="Volver">
+                        Cancelar
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               Disabled="@guardando"
+                               OnClick="Guardar">
+                        @(guardando ? "Guardando..." : Id.HasValue ? "Guardar cambios" : "Crear función")
+                    </MudButton>
+                </MudStack>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private string Titulo => Id.HasValue ? "Modificar función" : "Nueva función";
+
+    private List<PeliculaListadoResponse> peliculas = new();
+    private List<SalaResponse> salas = new();
+
+    private int? peliculaId;
+    private int? salaId;
+    private FormatoFuncion formato = FormatoFuncion.DosD;
+    private IdiomaFuncion idioma = IdiomaFuncion.Español;
+    private DateTime? fecha = DateTime.Today;
+    private TimeSpan? hora = new TimeSpan(18, 0, 0);
+    private decimal precio;
+
+    // Instante original (UTC) de la función que se edita: si el usuario no toca fecha ni hora,
+    // se reenvía tal cual para que el backend no lo interprete como un cambio de agenda.
+    private DateTime? inicioOriginalUtc;
+
+    private bool cargando = true;
+    private bool guardando;
+    private string? errorCarga;
+    private string? error;
+    private string? errorValidacion;
+
+    private int? DuracionElegida => peliculas.FirstOrDefault(p => p.Id == peliculaId)?.DuracionMinutos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            peliculas = await PeliculaService.ObtenerTodasParaSelector();
+            salas = await SalaService.ObtenerSalas();
+
+            if (Id.HasValue)
+            {
+                FuncionResponse funcion = await FuncionService.ObtenerFuncion(Id.Value);
+                DateTime local = ZonaHoraria.ALocal(funcion.FechaHora);
+
+                peliculaId = funcion.PeliculaId;
+                salaId = funcion.SalaId;
+                formato = funcion.Formato;
+                idioma = funcion.Idioma;
+                fecha = local.Date;
+                hora = local.TimeOfDay;
+                precio = funcion.PrecioEntrada;
+                inicioOriginalUtc = funcion.FechaHora;
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            errorCarga = Mensaje(e, "No se pudieron cargar los datos. Verificá tu sesión y la conexión con el backend.");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private DateTime? InicioUtc()
+    {
+        if (fecha is null || hora is null) return null;
+
+        DateTime local = fecha.Value.Date + hora.Value;
+
+        // Sin cambios respecto de lo guardado: se conserva el instante exacto original.
+        if (inicioOriginalUtc is DateTime original)
+        {
+            DateTime originalLocal = ZonaHoraria.ALocal(original);
+
+            if (originalLocal.Date == local.Date &&
+                (int)originalLocal.TimeOfDay.TotalMinutes == (int)local.TimeOfDay.TotalMinutes)
+            {
+                return original;
+            }
+        }
+
+        return ZonaHoraria.AUtc(local);
+    }
+
+    private string? Validar(DateTime? inicioUtc)
+    {
+        if (peliculaId is null) return "Seleccioná una película.";
+        if (salaId is null) return "Seleccioná una sala.";
+        if (inicioUtc is null) return "Indicá la fecha y la hora de inicio.";
+        if (precio <= 0) return "El precio de la entrada debe ser mayor a cero.";
+
+        bool cambioHorario = inicioOriginalUtc is null || inicioOriginalUtc != inicioUtc;
+
+        if (cambioHorario && inicioUtc <= DateTime.UtcNow)
+            return "La función debe programarse a futuro.";
+
+        return null;
+    }
+
+    private async Task Guardar()
+    {
+        if (guardando) return;
+
+        error = null;
+
+        DateTime? inicio = InicioUtc();
+        errorValidacion = Validar(inicio);
+
+        if (errorValidacion is not null) return;
+
+        guardando = true;
+
+        try
+        {
+            if (Id.HasValue)
+            {
+                await FuncionService.Actualizar(Id.Value, new ActualizarFuncionRequest(
+                    peliculaId!.Value, salaId!.Value, formato, idioma, inicio!.Value, precio));
+            }
+            else
+            {
+                await FuncionService.Crear(new CrearFuncionRequest(
+                    peliculaId!.Value, salaId!.Value, formato, idioma, inicio!.Value, precio));
+            }
+
+            Snackbar.Add(Id.HasValue ? "Función modificada." : "Función creada.", Severity.Success);
+            Navigation.NavigateTo("/funciones");
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            // Superposición con otra función, entradas vendidas, etc.: se muestra el mensaje del backend.
+            error = Mensaje(e, "No se pudo guardar la función. Verificá los datos y tu sesión.");
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private static bool EsErrorEsperado(Exception e) =>
+        e is HttpRequestException or InvalidOperationException or JsonException;
+
+    private static string Mensaje(Exception e, string porDefecto) => e switch
+    {
+        InvalidOperationException => e.Message,
+        JsonException => "El servidor devolvió una respuesta inválida.",
+        _ => porDefecto
+    };
+
+    private void Volver() => Navigation.NavigateTo("/funciones");
+}

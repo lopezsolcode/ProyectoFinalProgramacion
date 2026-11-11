@@ -1,0 +1,23 @@
+<MudPaper Elevation="8"
+          Class="d-flex align-center justify-space-between pa-3"
+          Style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; padding-bottom: max(12px, env(safe-area-inset-bottom));">
+    <div>
+        <MudText Typo="Typo.caption">@Titulo</MudText>
+        <MudText Typo="Typo.h6">@Valor</MudText>
+    </div>
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               Disabled="@Deshabilitado"
+               OnClick="OnClick">
+        @TextoBoton
+    </MudButton>
+</MudPaper>
+
+@code {
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public string TextoBoton { get; set; } = "Continuar";
+    [Parameter] public bool Deshabilitado { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+}

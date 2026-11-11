@@ -1,0 +1,214 @@
+@page "/catalogo/{PeliculaId:int}"
+@using System.Text.Json
+@using Cinemax.Mobile.Models
+@using Cinemax.Mobile.Services
+@using Cinemax.Shared.DTO.Funcion.Response
+@using Cinemax.Shared.DTO.Pelicula.Response
+@inject CatalogoService CatalogoService
+@inject CarritoService Compra
+@inject NavigationManager Navigation
+
+<PageTitle>Funciones</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    <MudStack Spacing="3">
+        <MudButton Href="/catalogo" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Style="align-self: flex-start;">
+            Cartelera
+        </MudButton>
+
+        @if (!string.IsNullOrWhiteSpace(_errorPelicula))
+        {
+            <MudAlert Severity="Severity.Error">@_errorPelicula</MudAlert>
+            <MudButton OnClick="CargarPelicula" Color="Color.Primary">Reintentar</MudButton>
+        }
+        else if (_pelicula is not null)
+        {
+            <MudStack Row="true" Spacing="3">
+                <div style="width: 120px; flex-shrink: 0;">
+                    <ImagenRemota Url="@_pelicula.Poster?.Url" Alto="170" Alt="@_pelicula.Titulo" Icono="@Icons.Material.Filled.Movie" />
+                </div>
+
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h1">@_pelicula.Titulo</MudText>
+                    <MudText Typo="Typo.body2">
+                        @Etiquetas.DeClasificacion(_pelicula.Clasificacion), @_pelicula.DuracionMinutos min
+                    </MudText>
+                    <MudText Typo="Typo.caption">@string.Join(", ", _pelicula.Generos.Select(g => g.Nombre))</MudText>
+                </div>
+            </MudStack>
+
+            <MudText Typo="Typo.body2">@_pelicula.Sinopsis</MudText>
+
+            <MudText Typo="Typo.subtitle1">Elegí el día y el horario</MudText>
+
+            <div class="d-flex gap-2 overflow-auto pb-1">
+                @foreach (DateOnly dia in _dias)
+                {
+                    <MudButton @key="dia"
+                               Size="Size.Small"
+                               Color="Color.Primary"
+                               Style="white-space: nowrap;"
+                               Variant="@(dia == _dia ? Variant.Filled : Variant.Outlined)"
+                               OnClick="@(() => SeleccionarDia(dia))">
+                        @Formato.Dia(dia)
+                    </MudButton>
+                }
+            </div>
+
+            @if (_cargandoFunciones)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_errorFunciones))
+            {
+                <MudAlert Severity="Severity.Error">@_errorFunciones</MudAlert>
+                <MudButton OnClick="CargarFunciones" Color="Color.Primary">Reintentar</MudButton>
+            }
+            else if (!_cargandoFunciones && _funciones.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">No quedan funciones para este día. Probá con otra fecha.</MudAlert>
+            }
+            else
+            {
+                <MudGrid Spacing="2">
+                    @foreach (FuncionCatalogoResponse f in _funciones)
+                    {
+                        <MudItem @key="f.Id" xs="6" sm="4" md="3">
+                            <MudButton FullWidth="true"
+                                       Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       Style="height: 100%; text-transform: none;"
+                                       OnClick="@(() => Elegir(f))">
+                                <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                                    <MudText Typo="Typo.h6" Color="Color.Inherit">@Formato.Hora(f.FechaHora)</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Inherit">Sala @f.SalaNumero</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Inherit">
+                                        @Etiquetas.DeFormato(f.Formato), @Etiquetas.DeIdioma(f.Idioma)
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Inherit">@Formato.Moneda(f.PrecioEntrada)</MudText>
+                                </MudStack>
+                            </MudButton>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        }
+        else if (_cargandoPelicula)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    private const int DiasVisibles = 7;
+
+    [Parameter] public int PeliculaId { get; set; }
+
+    private readonly List<DateOnly> _dias = new();
+    private PeliculaResponse? _pelicula;
+    private List<FuncionCatalogoResponse> _funciones = new();
+    private DateOnly _dia;
+    private string? _errorPelicula;
+    private string? _errorFunciones;
+    private bool _cargandoPelicula = true;
+    private bool _cargandoFunciones;
+    private int _solicitud;
+
+    protected override async Task OnInitializedAsync()
+    {
+        DateOnly hoy = ZonaHoraria.HoyLocal();
+
+        for (int i = 0; i < DiasVisibles; i++)
+        {
+            _dias.Add(hoy.AddDays(i));
+        }
+
+        _dia = hoy;
+
+        await CargarPelicula();
+    }
+
+    private async Task CargarPelicula()
+    {
+        _cargandoPelicula = true;
+        _errorPelicula = null;
+
+        try
+        {
+            _pelicula = await CatalogoService.ObtenerPelicula(PeliculaId);
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _errorPelicula = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo cargar la película. Verificá la conexión e intentá nuevamente.";
+            return;
+        }
+        finally
+        {
+            _cargandoPelicula = false;
+        }
+
+        await CargarFunciones();
+    }
+
+    private async Task SeleccionarDia(DateOnly dia)
+    {
+        _dia = dia;
+        await CargarFunciones();
+    }
+
+    private async Task CargarFunciones()
+    {
+        int solicitud = ++_solicitud;
+        _cargandoFunciones = true;
+        _errorFunciones = null;
+
+        try
+        {
+            List<FuncionCatalogoResponse> funciones = await CatalogoService.ObtenerFuncionesDelDia(PeliculaId, _dia);
+
+            if (solicitud != _solicitud) return;
+
+            _funciones = funciones;
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            if (solicitud == _solicitud)
+                _errorFunciones = e is InvalidOperationException
+                    ? e.Message
+                    : "No se pudieron cargar las funciones. Verificá la conexión e intentá nuevamente.";
+        }
+        finally
+        {
+            if (solicitud == _solicitud) _cargandoFunciones = false;
+        }
+    }
+
+    private async Task Elegir(FuncionCatalogoResponse funcion)
+    {
+        if (_pelicula is null) return;
+
+        await Compra.ElegirPelicula(new PeliculaCarrito
+        {
+            Id = _pelicula.Id,
+            Titulo = _pelicula.Titulo,
+            PosterUrl = _pelicula.Poster?.Url
+        });
+
+        await Compra.ElegirFuncion(new FuncionCarrito
+        {
+            Id = funcion.Id,
+            FechaHoraUtc = funcion.FechaHora,
+            SalaNumero = funcion.SalaNumero,
+            Formato = funcion.Formato,
+            Idioma = funcion.Idioma,
+            PrecioEntrada = funcion.PrecioEntrada
+        });
+
+        Navigation.NavigateTo($"/butacas/{funcion.Id}");
+    }
+}

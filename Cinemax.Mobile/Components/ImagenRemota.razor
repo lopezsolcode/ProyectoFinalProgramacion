@@ -1,0 +1,34 @@
+@using Cinemax.Mobile.Services
+@inject ImagenCacheService Imagenes
+
+@if (!string.IsNullOrWhiteSpace(_src))
+{
+    <img src="@_src" alt="@Alt" style="@($"width: 100%; height: {Alto}px; object-fit: {Ajuste}; display: block;")" />
+}
+else
+{
+    <div class="d-flex align-center justify-center mud-background-gray"
+         style="@($"height: {Alto}px;")"
+         aria-label="@Alt">
+        <MudIcon Icon="@Icono" Size="Size.Large" />
+    </div>
+}
+
+@code {
+    [Parameter] public string? Url { get; set; }
+    [Parameter] public int Alto { get; set; } = 180;
+    [Parameter] public string Alt { get; set; } = string.Empty;
+    [Parameter] public string Icono { get; set; } = Icons.Material.Filled.ImageNotSupported;
+    [Parameter] public string Ajuste { get; set; } = "cover";
+
+    private string? _src;
+    private string? _urlCargada;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Url == _urlCargada) return;
+
+        _urlCargada = Url;
+        _src = string.IsNullOrWhiteSpace(Url) ? null : await Imagenes.ObtenerSrc(Url);
+    }
+}

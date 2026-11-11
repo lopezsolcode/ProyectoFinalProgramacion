@@ -1,0 +1,65 @@
+@using Cinemax.Shared.DTO.Sala.Response
+
+<MudStack Spacing="3">
+    <div class="d-flex gap-4 flex-wrap">
+        <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-lines-inputs)")"></span> Butaca</span>
+        <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-info)")"></span> Accesible</span>
+    </div>
+
+    <div style="overflow-x: auto;">
+        <div style="display: inline-block; min-width: 100%;">
+            <div class="mud-background-gray text-center mb-4 pa-1" style="border-radius: 4px;">
+                <MudText Typo="Typo.caption">Pantalla</MudText>
+            </div>
+
+            @foreach (string fila in Mapa.Filas)
+            {
+                <div @key="fila" class="d-flex align-center justify-center mb-1">
+                    <span style="width: 24px; font-weight: 600;">@fila</span>
+                    <div style="display: grid; grid-template-columns: repeat(@(Mapa.TotalColumnas), 30px); gap: 4px;">
+                        @for (int c = 1; c <= Mapa.TotalColumnas; c++)
+                        {
+                            if (_porPosicion.TryGetValue((fila, c), out ButacaResponse? b))
+                            {
+                                <div title="@($"{b.Fila}{b.Numero}" + (b.Accesible ? " (accesible)" : ""))"
+                                     style="@Estilo(b)">
+                                    @b.Numero
+                                </div>
+                            }
+                            else
+                            {
+                                <div></div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <MudText Typo="Typo.caption">@Mapa.Butacas.Count butacas en total.</MudText>
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public MapaSalaResponse Mapa { get; set; } = default!;
+
+    private Dictionary<(string Fila, int Columna), ButacaResponse> _porPosicion = new();
+
+    protected override void OnParametersSet()
+    {
+        _porPosicion = Mapa.Butacas.ToDictionary(b => (b.Fila, b.Columna));
+    }
+
+    private static string Estilo(ButacaResponse b)
+    {
+        string borde = b.Accesible ? "var(--mud-palette-info)" : "var(--mud-palette-lines-inputs)";
+
+        return "width: 30px; height: 30px; border-radius: 6px; font-size: 11px; display: flex; " +
+               "align-items: center; justify-content: center; " +
+               $"background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); border: 2px solid {borde};";
+    }
+
+    private static string Leyenda(string borde) =>
+        $"display: inline-block; width: 16px; height: 16px; border-radius: 4px; background: var(--mud-palette-surface); border: 2px solid {borde};";
+}

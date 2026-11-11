@@ -1,127 +1,169 @@
 @page "/carrito"
-@using System.Globalization
+@using System.Net
+@using System.Text.Json
 @using Microsoft.AspNetCore.Authorization
+@using Cinemax.Mobile.Models
 @using Cinemax.Mobile.Services
+@using Cinemax.Shared.DTO.Funcion.Response
 @using Cinemax.Shared.DTO.Venta.Request
 @using Cinemax.Shared.DTO.Venta.Response
-@inject ISnackbar Snackbar
-@inject NavigationManager Navigation
-@inject CarritoService CarritoService
-@inject CatalogoService CatalogoService
+@using Cinemax.Shared.Enums
 @attribute [Authorize(Roles = "Cliente")]
+@inject CarritoService Compra
+@inject CatalogoService CatalogoService
 @inject ComprasService ComprasService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 
-<PageTitle>Mi carrito</PageTitle>
+<PageTitle>Mi compra</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Small" Style="padding-bottom: 96px;">
-    <MudText Typo="Typo.h5" HtmlTag="h1">Mi carrito</MudText>
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-4" Style="padding-bottom: 110px;">
+    <MudText Typo="Typo.h5" HtmlTag="h1" Class="mb-3">Mi compra</MudText>
 
-@if (_cargando)
+    @if (_cargando)
     {
         <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
     }
-    else if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <MudAlert Severity="Severity.Error">@_error</MudAlert>
-    }
-    else if (_productos.Count == 0)
-    {
-        <MudText>El carrito está vacío.</MudText>
-    }
     else
     {
-        <MudList T="ProductoCarrito">
-            @foreach (var producto in _productos)
-            {
-                <MudListItem T="ProductoCarrito" @key="producto.ProductoId">
-                    <MudText>@producto.Nombre</MudText>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+        }
 
-                    <MudStack Row="true" AlignItems="AlignItems.Center">
-                        <MudIconButton Icon="@Icons.Material.Filled.Remove"
-                        Disabled="@(_actualizando || _procesando)"
-                        OnClick="@(() => CambiarCantidad(producto, -1))" />
+        @if (_pendiente is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-3">
+                <MudText>
+                    Tenés una compra pendiente de pago (#@_pendiente.Id, @Formato.Moneda(_pendiente.Total)).
+                    Pagala o cancelala antes de iniciar otra.
+                </MudText>
 
-                        <MudText>@producto.Cantidad</MudText>
+                <MudStack Row="true" Class="mt-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_procesando"
+                               OnClick="@(() => Navigation.NavigateTo($"/pago/{_pendiente.Id}"))">
+                        Retomar pago
+                    </MudButton>
+                    <MudButton Disabled="_procesando" OnClick="CancelarPendiente">Cancelar esa compra</MudButton>
+                </MudStack>
+            </MudAlert>
+        }
 
-                        <MudIconButton Icon="@Icons.Material.Filled.Add"
-                        Disabled="@(_actualizando || _procesando || producto.Cantidad >= producto.Stock)"
-                        OnClick="@(() => CambiarCantidad(producto, 1))" />
+        @if (!Compra.TieneEntradas)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-3">
+                Tu compra todavía no tiene entradas. Elegí una película y una función para empezar.
+            </MudAlert>
+            <MudButton Href="/cartelera" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true">
+                Ver cartelera
+            </MudButton>
+        }
+        else
+        {
+            <MudPaper Outlined="true" Class="pa-3 mb-3">
+                <MudText Typo="Typo.subtitle1">@Compra.Carrito.Pelicula?.Titulo</MudText>
+                <MudText Typo="Typo.body2">
+                    @Formato.DiaHora(Compra.Carrito.Funcion!.FechaHoraUtc), Sala @Compra.Carrito.Funcion.SalaNumero,
+                    @Etiquetas.DeFormato(Compra.Carrito.Funcion.Formato), @Etiquetas.DeIdioma(Compra.Carrito.Funcion.Idioma)
+                </MudText>
+
+                <MudText Typo="Typo.subtitle2" Class="mt-3">Entradas (@Compra.Carrito.Butacas.Count)</MudText>
+
+                @foreach (ButacaCarrito b in Compra.Carrito.Butacas.OrderBy(x => x.Fila).ThenBy(x => x.Numero))
+                {
+                    <MudStack @key="b.Id" Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2">Butaca @b.Etiqueta</MudText>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudText Typo="Typo.body2">@Formato.Moneda(Compra.Carrito.Funcion.PrecioEntrada)</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Disabled="_procesando"
+                                           Title="Quitar butaca"
+                                           OnClick="@(() => Compra.DescartarButacas(new[] { b.Id }))" />
+                        </MudStack>
                     </MudStack>
+                }
 
-                    <MudText Typo="Typo.body2">
-                        Subtotal: @((producto.PrecioVenta * producto.Cantidad).ToString("C2", _cultura))
-                    </MudText>
-                </MudListItem>
-            }
-        </MudList>
+                <MudButton Variant="Variant.Text" Size="Size.Small" Class="mt-2"
+                           OnClick="@(() => Navigation.NavigateTo($"/butacas/{Compra.Carrito.Funcion.Id}"))">
+                    Cambiar butacas
+                </MudButton>
+            </MudPaper>
+
+            <MudPaper Outlined="true" Class="pa-3 mb-3">
+                <MudText Typo="Typo.subtitle2">Snacks y combos</MudText>
+
+                @if (Compra.Carrito.Lineas.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="my-2">No agregaste nada para comer.</MudText>
+                }
+
+                @foreach (LineaCarrito l in Compra.Carrito.Lineas)
+                {
+                    <div @key="l" class="mb-2">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.body2">@l.Nombre</MudText>
+                            <MudText Typo="Typo.body2">@Formato.Moneda(l.Subtotal)</MudText>
+                        </MudStack>
+
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Disabled="_procesando"
+                                           OnClick="@(() => Compra.CambiarCantidad(l.SnackId, l.ComboId, -1))" />
+                            <MudText Typo="Typo.body2">@l.Cantidad</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                           Disabled="@(_procesando || l.Cantidad >= CarritoService.MaxCantidadPorItem)"
+                                           OnClick="@(() => Compra.CambiarCantidad(l.SnackId, l.ComboId, 1))" />
+                        </MudStack>
+                    </div>
+                }
+
+                <MudButton Variant="Variant.Text" Size="Size.Small" Href="/snacks">
+                    @(Compra.Carrito.Lineas.Count == 0 ? "Agregar snacks" : "Agregar más")
+                </MudButton>
+            </MudPaper>
+
+            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                <MudText Typo="Typo.body2">Entradas</MudText>
+                <MudText Typo="Typo.body2">@Formato.Moneda(Compra.TotalEntradas)</MudText>
+            </MudStack>
+            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                <MudText Typo="Typo.body2">Snacks y combos</MudText>
+                <MudText Typo="Typo.body2">@Formato.Moneda(Compra.TotalSnacks)</MudText>
+            </MudStack>
+
+            <MudText Typo="Typo.caption" Class="d-block mt-3">
+                Al continuar reservamos tus butacas por unos minutos hasta que completes el pago.
+            </MudText>
+        }
     }
 </MudContainer>
 
-@if (!_cargando && string.IsNullOrWhiteSpace(_error) && _productos.Count > 0)
+@if (!_cargando && Compra.TieneEntradas)
 {
-    <MudPaper Elevation="8"
-    Class="d-flex align-center justify-space-between pa-3"
-    Style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; padding-bottom: max(12px, env(safe-area-inset-bottom));">
-        <div>
-            <MudText Typo="Typo.caption">Total</MudText>
-            <MudText Typo="Typo.h6">@Total.ToString("C2", _cultura)</MudText>
-        </div>
-
-        <MudButton Variant="Variant.Filled"
-        Color="Color.Primary"
-        Disabled="_procesando || _actualizando"
-        OnClick="Continuar">
-            @(_procesando ? "Procesando..." : $"Continuar ({CantidadTotal})")
-        </MudButton>
-    </MudPaper>
+    <BarraInferior Titulo="Total"
+                   Valor="@Formato.Moneda(Compra.Total)"
+                   TextoBoton="@(_procesando ? "Procesando..." : "Continuar al pago")"
+                   Deshabilitado="@(_procesando || _pendiente is not null)"
+                   OnClick="Continuar" />
 }
 
 @code {
-    private static readonly CultureInfo _cultura = CultureInfo.GetCultureInfo("es-AR");
-
-    private List<ProductoCarrito> _productos = new();
+    private VentaListadoResponse? _pendiente;
     private bool _cargando = true;
-    private bool _actualizando;
     private bool _procesando;
     private string? _error;
-
-    // Decidí usar un record porque se me hacía más cómodo, pero también podemos usar una clase si querés.
-    // Lo que sí desp cuando cambiemos la cantidad vamos a crear una nueva copia con la nueva cantidad. Si fuera una clase simplemente
-    // ajustaríamos la propiedad.
-    private record ProductoCarrito(int ProductoId, string Nombre, decimal PrecioVenta, int Cantidad, int Stock);
-
-    private decimal Total => _productos.Sum(p => p.PrecioVenta * p.Cantidad);
-    private int CantidadTotal => _productos.Sum(p => p.Cantidad);
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var items = await CarritoService.Obtener();
-
-            var ids = items.Select(item => item.ProductoId).ToList();
-            var productos = await CatalogoService.ObtenerProductosCarrito(ids);
-
-            foreach (var item in items)
-            {
-                var producto = productos.FirstOrDefault(p => p.ProductoId == item.ProductoId);
-
-                if (producto is null)
-                {
-                    Snackbar.Add($"El producto {item.ProductoId} ya no está disponible.", Severity.Warning);
-                    continue;
-                }
-
-                _productos.Add(new ProductoCarrito(producto.ProductoId, producto.Nombre, producto.PrecioVenta, item.Cantidad, producto.Stock));
-            }
+            await Compra.Inicializar();
+            await CargarPendiente();
+            await Validar();
         }
-        catch (HttpRequestException)
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
         {
-            _error = "No se pudo consultar el carrito. Intentá nuevamente.";
-        }
-        catch (InvalidOperationException e)
-        {
-            _error = e.Message;
+            _error = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo consultar tu compra. Verificá la conexión e intentá nuevamente.";
         }
         finally
         {
@@ -129,30 +171,73 @@
         }
     }
 
+    // Busca una compra pendiente de pago: el backend solo permite una a la vez.
+    private async Task CargarPendiente()
+    {
+        var resultado = await ComprasService.ObtenerMisCompras(1, EstadoVenta.Pendiente);
+        _pendiente = resultado.Datos.FirstOrDefault();
+    }
+
+    // Las butacas no se reservan hasta pagar: se confirma que la función siga vigente y las butacas libres.
+    private async Task Validar()
+    {
+        if (!Compra.TieneEntradas) return;
+
+        int funcionId = Compra.Carrito.Funcion!.Id;
+
+        try
+        {
+            MapaFuncionResponse mapa = await CatalogoService.ObtenerMapa(funcionId);
+
+            if (mapa.FechaHora <= DateTime.UtcNow)
+            {
+                await Compra.DescartarEntradas();
+                Snackbar.Add("La función que elegiste ya comenzó. Elegí otra.", Severity.Warning);
+                return;
+            }
+
+            List<int> ocupadas = Compra.Carrito.Butacas
+                .Where(s => mapa.Butacas.Any(b => b.Id == s.Id && b.Ocupada))
+                .Select(s => s.Id)
+                .ToList();
+
+            if (ocupadas.Count > 0)
+            {
+                await Compra.DescartarButacas(ocupadas);
+                Snackbar.Add("Algunas butacas ya no están disponibles y se quitaron de tu compra.", Severity.Warning);
+            }
+        }
+        catch (ApiException e) when (e.Codigo == HttpStatusCode.NotFound)
+        {
+            await Compra.DescartarEntradas();
+            Snackbar.Add("La función que elegiste ya no está disponible. Elegí otra.", Severity.Warning);
+        }
+    }
+
     private async Task Continuar()
     {
-        if (_procesando || _actualizando || _productos.Count == 0)
-        {
-            return;
-        }
+        if (_procesando || !Compra.TieneEntradas) return;
 
         _procesando = true;
 
         try
         {
-            // Se mandan solo los productos que se muestran, no lo que hay guardado en el celu,
-            // porque el guardado puede tener productos que ya no existen.
-            List<CrearVentaItemRequest> items = _productos
-                .Select(p => new CrearVentaItemRequest(p.ProductoId, p.Cantidad))
-                .ToList();
+            CrearCompraOnlineRequest request = new(
+                Compra.Carrito.Funcion!.Id,
+                Compra.Carrito.Butacas.Select(b => b.Id).ToList(),
+                Compra.Carrito.Lineas
+                    .Select(l => new VentaSnackItemRequest(l.SnackId, l.ComboId, l.Cantidad))
+                    .ToList());
 
-            VentaResponse venta = await ComprasService.CrearCompraOnline(items);
+            VentaResponse venta = await ComprasService.CrearCompraOnline(request);
 
             Navigation.NavigateTo($"/pago/{venta.Id}");
         }
         catch (InvalidOperationException e)
         {
+            // Butaca ocupada, falta de stock o compra pendiente: se muestra el mensaje y se refresca el estado.
             Snackbar.Add(e.Message, Severity.Error);
+            await Refrescar();
         }
         catch (HttpRequestException)
         {
@@ -164,49 +249,43 @@
         }
     }
 
-    private async Task CambiarCantidad(ProductoCarrito producto, int cambio)
+    private async Task CancelarPendiente()
     {
-        if (_actualizando || _procesando)
-        {
-            return;
-        }
+        if (_pendiente is null || _procesando) return;
 
-        if (cambio > 0 && producto.Cantidad >= producto.Stock)
-        {
-            Snackbar.Add("No hay más unidades disponibles.", Severity.Warning);
-            return;
-        }
-
-        int cantidad = producto.Cantidad + cambio;
-
-        if (cantidad < 0)
-        {
-            return;
-        }
-
-        _actualizando = true;
+        _procesando = true;
 
         try
         {
-            await CarritoService.CambiarCantidad(producto.ProductoId, cantidad);
-
-            if (cantidad == 0)
-            {
-                _productos.Remove(producto);
-            }
-            else
-            {
-                int posicion = _productos.IndexOf(producto);
-                _productos[posicion] = producto with { Cantidad = cantidad };
-            }
+            await ComprasService.Cancelar(_pendiente.Id);
+            _pendiente = null;
+            Snackbar.Add("Cancelaste la compra pendiente.", Severity.Success);
         }
         catch (InvalidOperationException e)
         {
             Snackbar.Add(e.Message, Severity.Error);
+            await Refrescar();
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("No se pudo conectar con el servidor.", Severity.Error);
         }
         finally
         {
-            _actualizando = false;
+            _procesando = false;
+        }
+    }
+
+    private async Task Refrescar()
+    {
+        try
+        {
+            await CargarPendiente();
+            await Validar();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            // Si falla el refresco, el mensaje anterior ya le avisó al usuario.
         }
     }
 }

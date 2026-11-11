@@ -54,12 +54,15 @@ public static class MauiProgram
         builder.Services.AddScoped<CatalogoService>();
         builder.Services.AddScoped<CarritoService>();
         builder.Services.AddScoped<ComprasService>();
+        builder.Services.AddScoped<ImagenCacheService>();
+
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.Logging.AddDebug();
+
 #endif
 
-		return builder.Build();
+        return builder.Build();
 	}
 }

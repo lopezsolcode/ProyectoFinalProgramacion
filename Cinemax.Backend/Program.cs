@@ -135,8 +135,9 @@ try
         builder.Services.AddScoped<ComboService>();
         builder.Services.AddScoped<InventarioService>();
         builder.Services.AddScoped<ImagenMapeador>();
+        builder.Services.AddScoped<ReservasVencidasWorker>();
 
-        builder.Services.AddHttpContextAccessor();
+    builder.Services.AddHttpContextAccessor();
 
     var app = builder.Build();
 

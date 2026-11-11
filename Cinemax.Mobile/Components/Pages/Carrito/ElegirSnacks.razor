@@ -1,0 +1,260 @@
+@page "/snacks"
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using Cinemax.Mobile.Services
+@using Cinemax.Shared.DTO.Combo.Response
+@using Cinemax.Shared.DTO.Paginado.Response
+@using Cinemax.Shared.DTO.Snack.Response
+@attribute [Authorize(Roles = "Cliente")]
+@inject CatalogoService CatalogoService
+@inject CarritoService Compra
+@inject NavigationManager Navigation
+
+<PageTitle>Snacks</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4" Style="padding-bottom: 110px;">
+    <MudStack Spacing="3">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Style="align-self: flex-start;"
+                   OnClick="@(() => Navigation.NavigateTo($"/butacas/{Compra.Carrito.Funcion?.Id}"))">
+            Volver a las butacas
+        </MudButton>
+
+        <div>
+            <MudText Typo="Typo.h5" HtmlTag="h1">¿Querés agregar algo para comer?</MudText>
+            <MudText Typo="Typo.body2">Es opcional: podés continuar sin snacks.</MudText>
+        </div>
+
+        <MudStack Row="true" Spacing="2">
+            <MudButton Size="Size.Small" Color="Color.Primary"
+                       Variant="@(_vista == Vista.Snacks ? Variant.Filled : Variant.Outlined)"
+                       OnClick="@(() => CambiarVista(Vista.Snacks))">Snacks</MudButton>
+            <MudButton Size="Size.Small" Color="Color.Primary"
+                       Variant="@(_vista == Vista.Combos ? Variant.Filled : Variant.Outlined)"
+                       OnClick="@(() => CambiarVista(Vista.Combos))">Combos</MudButton>
+        </MudStack>
+
+        <MudTextField T="string"
+                      @bind-Value="_buscar"
+                      Label="Buscar por nombre"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true"
+                      DebounceInterval="350"
+                      OnDebounceIntervalElapsed="Buscar" />
+
+        @if (_cargando)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            <MudButton OnClick="Cargar" Color="Color.Primary">Reintentar</MudButton>
+        }
+        else if (!_cargando && CantidadMostrada == 0)
+        {
+            <MudAlert Severity="Severity.Info">No se encontró nada con ese criterio.</MudAlert>
+        }
+        else if (_vista == Vista.Snacks)
+        {
+            <MudGrid Spacing="2">
+                @foreach (SnackCatalogoResponse s in _snacks)
+                {
+                    int cantidad = Compra.CantidadDe(s.Id, null);
+
+                    <MudItem @key="s.Id" xs="6" sm="4" md="3">
+                        <MudCard Style="@(s.Disponible ? "height: 100%;" : "height: 100%; opacity: 0.55;")">
+                            <ImagenRemota Url="@s.Imagen?.Url" Alto="110" Alt="@s.Nombre" />
+
+                            <MudCardContent Class="pa-3">
+                                <MudText Typo="Typo.subtitle2">@s.Nombre</MudText>
+                                <MudText Typo="Typo.caption" Class="d-block">@s.DescripcionUnidad</MudText>
+                                <MudText Typo="Typo.subtitle1" Color="Color.Primary">@Formato.Moneda(s.Precio)</MudText>
+                                @if (!s.Disponible)
+                                {
+                                    <MudText Typo="Typo.body2" Color="Color.Error">Sin stock</MudText>
+                                }
+                            </MudCardContent>
+
+                            <MudCardActions Class="pa-2">
+                                @if (cantidad == 0)
+                                {
+                                    <MudButton FullWidth="true" Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                               Disabled="@(!s.Disponible)"
+                                               OnClick="@(() => Compra.Agregar(s.Id, null, s.Nombre, s.Precio))">
+                                        Agregar
+                                    </MudButton>
+                                }
+                                else
+                                {
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Style="width: 100%;">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                       OnClick="@(() => Compra.CambiarCantidad(s.Id, null, -1))" />
+                                        <MudText>@cantidad</MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                       Disabled="@(cantidad >= CarritoService.MaxCantidadPorItem)"
+                                                       OnClick="@(() => Compra.CambiarCantidad(s.Id, null, 1))" />
+                                    </MudStack>
+                                }
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+        else
+        {
+            <MudGrid Spacing="2">
+                @foreach (ComboResponse c in _combos)
+                {
+                    int cantidad = Compra.CantidadDe(null, c.Id);
+
+                    <MudItem @key="c.Id" xs="6" sm="4" md="3">
+                        <MudCard Style="@(c.Disponible ? "height: 100%;" : "height: 100%; opacity: 0.55;")">
+                            <ImagenRemota Url="@c.Imagen?.Url" Alto="110" Alt="@c.Nombre" />
+
+                            <MudCardContent Class="pa-3">
+                                <MudText Typo="Typo.subtitle2">@c.Nombre</MudText>
+                                <MudText Typo="Typo.caption" Class="d-block">
+                                    @string.Join(", ", c.Items.Select(i => $"{i.Cantidad} x {i.SnackNombre}"))
+                                </MudText>
+                                <MudText Typo="Typo.subtitle1" Color="Color.Primary">@Formato.Moneda(c.Precio)</MudText>
+                                @if (!c.Disponible)
+                                {
+                                    <MudText Typo="Typo.body2" Color="Color.Error">Sin stock</MudText>
+                                }
+                            </MudCardContent>
+
+                            <MudCardActions Class="pa-2">
+                                @if (cantidad == 0)
+                                {
+                                    <MudButton FullWidth="true" Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                               Disabled="@(!c.Disponible)"
+                                               OnClick="@(() => Compra.Agregar(null, c.Id, c.Nombre, c.Precio))">
+                                        Agregar
+                                    </MudButton>
+                                }
+                                else
+                                {
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Style="width: 100%;">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                       OnClick="@(() => Compra.CambiarCantidad(null, c.Id, -1))" />
+                                        <MudText>@cantidad</MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                       Disabled="@(cantidad >= CarritoService.MaxCantidadPorItem)"
+                                                       OnClick="@(() => Compra.CambiarCantidad(null, c.Id, 1))" />
+                                    </MudStack>
+                                }
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+
+        @if (_totalPaginas > 1)
+        {
+            <MudPagination Count="_totalPaginas" Selected="_pagina" SelectedChanged="CambiarPagina" Color="Color.Primary" />
+        }
+    </MudStack>
+</MudContainer>
+
+<BarraInferior Titulo="Total de tu compra"
+               Valor="@Formato.Moneda(Compra.Total)"
+               TextoBoton="@(Compra.Carrito.Lineas.Count == 0 ? "Seguir sin snacks" : "Ver mi compra")"
+               OnClick="@(() => Navigation.NavigateTo("/carrito"))" />
+
+@code {
+    private enum Vista { Snacks, Combos }
+
+    private Vista _vista = Vista.Snacks;
+    private List<SnackCatalogoResponse> _snacks = new();
+    private List<ComboResponse> _combos = new();
+    private string? _buscar;
+    private string? _busquedaAplicada;
+    private string? _error;
+    private bool _cargando;
+    private int _pagina = 1;
+    private int _totalPaginas;
+    private int _solicitud;
+
+    private int CantidadMostrada => _vista == Vista.Snacks ? _snacks.Count : _combos.Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Compra.Inicializar();
+
+        // Sin entradas no hay compra: el backend exige al menos una.
+        if (!Compra.TieneEntradas)
+        {
+            Navigation.NavigateTo("/catalogo");
+            return;
+        }
+
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        int solicitud = ++_solicitud;
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            if (_vista == Vista.Snacks)
+            {
+                PaginadoResponseDto<SnackCatalogoResponse> r = await CatalogoService.ObtenerSnacks(_pagina, _busquedaAplicada);
+                if (solicitud != _solicitud) return;
+                _snacks = r.Datos;
+                _pagina = r.NumeroPagina;
+                _totalPaginas = r.TotalPaginas;
+            }
+            else
+            {
+                PaginadoResponseDto<ComboResponse> r = await CatalogoService.ObtenerCombos(_pagina, _busquedaAplicada);
+                if (solicitud != _solicitud) return;
+                _combos = r.Datos;
+                _pagina = r.NumeroPagina;
+                _totalPaginas = r.TotalPaginas;
+            }
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            if (solicitud == _solicitud)
+                _error = e is InvalidOperationException
+                    ? e.Message
+                    : "No se pudo cargar el catálogo. Verificá la conexión e intentá nuevamente.";
+        }
+        finally
+        {
+            if (solicitud == _solicitud) _cargando = false;
+        }
+    }
+
+    private async Task CambiarVista(Vista vista)
+    {
+        if (_vista == vista) return;
+
+        _vista = vista;
+        _pagina = 1;
+        await Cargar();
+    }
+
+    private async Task Buscar(string? texto)
+    {
+        _busquedaAplicada = texto?.Trim();
+        _pagina = 1;
+        await Cargar();
+    }
+
+    private async Task CambiarPagina(int pagina)
+    {
+        _pagina = pagina;
+        await Cargar();
+    }
+}

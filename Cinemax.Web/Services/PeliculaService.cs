@@ -59,6 +59,33 @@ public class PeliculaService
                ?? throw new InvalidOperationException("El servidor no devolvió el listado de películas.");
     }
 
+    // Todas las películas no eliminadas (en páginas de 50), para los selectores del administrador.
+    public async Task<List<PeliculaListadoResponse>> ObtenerTodasParaSelector()
+    {
+        List<PeliculaListadoResponse> todas = new();
+
+        for (int pagina = 1; pagina <= 20; pagina++)
+        {
+            PaginadoResponseDto<PeliculaListadoResponse> resultado = await ObtenerPeliculas(
+                new ParametroPaginacionPeliculaRequest
+                {
+                    NumeroPagina = pagina,
+                    TamanoPagina = 50,
+                    OrdenarPor = "titulo",
+                    Direccion = "asc"
+                });
+
+            // Si el servidor no respetó la página pedida, se corta para no duplicar datos.
+            if (resultado.NumeroPagina != pagina) break;
+
+            todas.AddRange(resultado.Datos);
+
+            if (!resultado.TienePaginaPosterior) break;
+        }
+
+        return todas;
+    }
+
     public async Task<PeliculaResponse> ObtenerPelicula(int id)
     {
         using HttpResponseMessage respuesta = await _autenticacionService.EnviarAutenticado(

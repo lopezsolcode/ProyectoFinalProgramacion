@@ -1,0 +1,411 @@
+@page "/funciones"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using Cinemax.Shared.DTO.Funcion.Response
+@using Cinemax.Shared.DTO.Paginado.Response
+@using Cinemax.Shared.DTO.Pelicula.Response
+@using Cinemax.Shared.DTO.Sala.Response
+@using Cinemax.Web.Services
+
+@inject FuncionService FuncionService
+@inject PeliculaService PeliculaService
+@inject SalaService SalaService
+@inject NavigationManager Navigation
+
+<PageTitle>Funciones</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+
+    <MudText Typo="Typo.h4" GutterBottom="true">Administración de funciones</MudText>
+
+    <MudText Typo="Typo.body2" Color="Color.Primary" Class="mb-4">
+        Programá y consultá las funciones. Los horarios se muestran en hora de Argentina.
+    </MudText>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudGrid Spacing="3">
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="int?"
+                           Label="Película"
+                           @bind-Value="peliculaSeleccionada"
+                           Clearable="true"
+                           Variant="Variant.Outlined">
+                    @foreach (var pelicula in peliculas)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)pelicula.Id)">@pelicula.Titulo</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudSelect T="int?"
+                           Label="Sala"
+                           @bind-Value="salaSeleccionada"
+                           Clearable="true"
+                           Variant="Variant.Outlined">
+                    @foreach (var sala in salas)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)sala.Id)">Sala @sala.Numero</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker Label="Día puntual"
+                               @bind-Date="dia"
+                               Clearable="true"
+                               Variant="Variant.Outlined" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudSelect T="bool"
+                           Label="Mostrar"
+                           @bind-Value="mostrarPasadas"
+                           Variant="Variant.Outlined"
+                           Disabled="@(dia is not null)">
+                    <MudSelectItem T="bool" Value="false">Desde hoy</MudSelectItem>
+                    <MudSelectItem T="bool" Value="true">Todas</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="2">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Sort"
+                           FullWidth="true"
+                           Class="mt-2"
+                           OnClick="CambiarDireccion">
+                    @(direccion == "asc" ? "Más próximas" : "Más lejanas")
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           FullWidth="true"
+                           OnClick="Buscar">
+                    Buscar
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.FilterAltOff"
+                           FullWidth="true"
+                           OnClick="LimpiarFiltros">
+                    Limpiar filtros
+                </MudButton>
+            </MudItem>
+
+        </MudGrid>
+    </MudPaper>
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.body2">
+            @if (resultado is not null)
+            {
+                <span>Total de funciones: @resultado.TotalRegistros</span>
+            }
+        </MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="Crear">
+            Nueva función
+        </MudButton>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando funciones...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@error</MudAlert>
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="CargarFunciones">
+            Reintentar
+        </MudButton>
+    }
+    else if (resultado is not null)
+    {
+        <MudTable T="FuncionResponse"
+                  Items="@resultado.Datos"
+                  Hover="true"
+                  Striped="true"
+                  Bordered="true"
+                  Dense="true"
+                  Elevation="1">
+
+            <HeaderContent>
+                <MudTh>ID</MudTh>
+                <MudTh>Fecha y hora</MudTh>
+                <MudTh>Termina</MudTh>
+                <MudTh>Película</MudTh>
+                <MudTh>Sala</MudTh>
+                <MudTh>Formato</MudTh>
+                <MudTh>Idioma</MudTh>
+                <MudTh>Entrada</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="ID">@context.Id</MudTd>
+                <MudTd DataLabel="Fecha y hora">@ZonaHoraria.ALocal(context.FechaHora).ToString("dd/MM/yyyy HH:mm")</MudTd>
+                <MudTd DataLabel="Termina">@ZonaHoraria.ALocal(context.FechaFin).ToString("HH:mm")</MudTd>
+                <MudTd DataLabel="Película">@context.PeliculaTitulo</MudTd>
+                <MudTd DataLabel="Sala">Sala @context.SalaNumero</MudTd>
+                <MudTd DataLabel="Formato">@Etiquetas.DeFormato(context.Formato)</MudTd>
+                <MudTd DataLabel="Idioma">@Etiquetas.DeIdioma(context.Idioma)</MudTd>
+                <MudTd DataLabel="Entrada">@context.PrecioEntrada.ToString("C2")</MudTd>
+                <MudTd DataLabel="Acciones">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Title="Editar función"
+                                   OnClick="@(() => Editar(context.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Title="Eliminar función"
+                                   OnClick="@(() => SolicitarEliminacion(context))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No se encontraron funciones.</MudText>
+            </NoRecordsContent>
+
+        </MudTable>
+
+        <MudPaper Elevation="0" Class="pa-3 mt-3">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaAnterior)"
+                           StartIcon="@Icons.Material.Filled.ChevronLeft"
+                           OnClick="PaginaAnterior">
+                    Anterior
+                </MudButton>
+
+                <MudText Typo="Typo.body2">
+                    Página @resultado.NumeroPagina de @resultado.TotalPaginas
+                </MudText>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaPosterior)"
+                           EndIcon="@Icons.Material.Filled.ChevronRight"
+                           OnClick="PaginaSiguiente">
+                    Siguiente
+                </MudButton>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (funcionAEliminar is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-4">
+            <MudText Typo="Typo.subtitle1">
+                ¿Querés eliminar la función de "@funcionAEliminar.PeliculaTitulo" del
+                @ZonaHoraria.ALocal(funcionAEliminar.FechaHora).ToString("dd/MM/yyyy HH:mm") en la sala @funcionAEliminar.SalaNumero?
+            </MudText>
+
+            <MudStack Row="true" Class="mt-3">
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Filled"
+                           Disabled="@eliminando"
+                           OnClick="ConfirmarEliminacion">
+                    Sí, eliminar
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@eliminando"
+                           OnClick="CancelarEliminacion">
+                    Cancelar
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <MudAlert Severity="@tipoMensaje" Class="mt-4" ShowCloseIcon="true">@mensaje</MudAlert>
+    }
+
+</MudContainer>
+
+@code {
+    private List<PeliculaListadoResponse> peliculas = new();
+    private List<SalaResponse> salas = new();
+
+    private PaginadoResponseDto<FuncionResponse>? resultado;
+
+    private int? peliculaSeleccionada;
+    private int? salaSeleccionada;
+    private DateTime? dia;
+    private bool mostrarPasadas;
+    private string direccion = "asc";
+
+    private bool cargando;
+    private bool eliminando;
+    private string? error;
+    private string? mensaje;
+    private Severity tipoMensaje = Severity.Info;
+
+    private FuncionResponse? funcionAEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Los selectores de filtro son opcionales: si fallan, el listado igual se carga.
+        try
+        {
+            peliculas = await PeliculaService.ObtenerTodasParaSelector();
+            salas = await SalaService.ObtenerSalas();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+        }
+
+        await CargarFunciones();
+    }
+
+    // Rango en UTC: un día puntual (en hora de Argentina), o desde el inicio de hoy, o sin límite.
+    private (DateTime? Desde, DateTime? Hasta) Rango()
+    {
+        if (dia is not null)
+        {
+            DateTime inicio = ZonaHoraria.AUtc(dia.Value.Date);
+            return (inicio, ZonaHoraria.AUtc(dia.Value.Date.AddDays(1)));
+        }
+
+        if (!mostrarPasadas)
+        {
+            return (ZonaHoraria.AUtc(ZonaHoraria.HoyLocal().ToDateTime(TimeOnly.MinValue)), null);
+        }
+
+        return (null, null);
+    }
+
+    private async Task CargarFunciones()
+    {
+        cargando = true;
+        error = null;
+
+        try
+        {
+            var (desde, hasta) = Rango();
+
+            resultado = await FuncionService.ObtenerFunciones(
+                resultado?.NumeroPagina ?? 1,
+                10,
+                peliculaSeleccionada,
+                salaSeleccionada,
+                desde,
+                hasta,
+                "fecha",
+                direccion);
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            error = e is InvalidOperationException
+                ? e.Message
+                : "No se pudieron cargar las funciones. Verificá tu sesión y la conexión con el backend.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task Buscar()
+    {
+        mensaje = null;
+        resultado = PrimeraPagina();
+        await CargarFunciones();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        peliculaSeleccionada = null;
+        salaSeleccionada = null;
+        dia = null;
+        mostrarPasadas = false;
+        direccion = "asc";
+        mensaje = null;
+
+        resultado = PrimeraPagina();
+        await CargarFunciones();
+    }
+
+    private async Task CambiarDireccion()
+    {
+        direccion = direccion == "asc" ? "desc" : "asc";
+        await Buscar();
+    }
+
+    private static PaginadoResponseDto<FuncionResponse> PrimeraPagina() =>
+        new(1, 10, 0, 0, false, false, new());
+
+    private async Task PaginaAnterior()
+    {
+        if (resultado is null || !resultado.TienePaginaAnterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina - 1 };
+        await CargarFunciones();
+    }
+
+    private async Task PaginaSiguiente()
+    {
+        if (resultado is null || !resultado.TienePaginaPosterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina + 1 };
+        await CargarFunciones();
+    }
+
+    private void Crear() => Navigation.NavigateTo("/funciones/nueva");
+
+    private void Editar(int id) => Navigation.NavigateTo($"/funciones/editar/{id}");
+
+    private void SolicitarEliminacion(FuncionResponse funcion)
+    {
+        funcionAEliminar = funcion;
+        mensaje = null;
+    }
+
+    private void CancelarEliminacion() => funcionAEliminar = null;
+
+    private async Task ConfirmarEliminacion()
+    {
+        if (funcionAEliminar is null) return;
+
+        eliminando = true;
+        mensaje = null;
+
+        try
+        {
+            await FuncionService.Eliminar(funcionAEliminar.Id);
+
+            mensaje = "La función fue eliminada.";
+            tipoMensaje = Severity.Success;
+            funcionAEliminar = null;
+
+            await CargarFunciones();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            // Si el backend la rechaza (por ejemplo, hay entradas vendidas) se muestra su mensaje.
+            mensaje = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo eliminar la función. Verificá la conexión y tu sesión.";
+            tipoMensaje = Severity.Error;
+        }
+        finally
+        {
+            eliminando = false;
+        }
+    }
+}

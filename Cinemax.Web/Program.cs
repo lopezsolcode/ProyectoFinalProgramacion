@@ -25,6 +25,8 @@ builder.Services.AddScoped<PosEstadoVenta>();
 builder.Services.AddScoped<PeliculaService>();
 builder.Services.AddScoped<GeneroService>();
 builder.Services.AddScoped<PersonaService>();
+builder.Services.AddScoped<SalaService>();
+builder.Services.AddScoped<FuncionService>();
 
 
 await builder.Build().RunAsync();

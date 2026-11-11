@@ -1,0 +1,235 @@
+@page "/butacas/{FuncionId:int}"
+@using System.Text.Json
+@using Cinemax.Mobile.Models
+@using Cinemax.Mobile.Services
+@using Cinemax.Shared.DTO.Funcion.Response
+@inject CatalogoService CatalogoService
+@inject CarritoService Compra
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Butacas</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4" Style="padding-bottom: 110px;">
+    <MudStack Spacing="3">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Style="align-self: flex-start;"
+                   OnClick="@(() => Navigation.NavigateTo($"/catalogo/{Compra.Carrito.Pelicula?.Id}"))">
+            Cambiar función
+        </MudButton>
+
+        @if (Compra.Carrito.Funcion is not null)
+        {
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h1">@Compra.Carrito.Pelicula?.Titulo</MudText>
+                <MudText Typo="Typo.body2">
+                    @Formato.DiaHora(Compra.Carrito.Funcion.FechaHoraUtc), Sala @Compra.Carrito.Funcion.SalaNumero,
+                    @Etiquetas.DeFormato(Compra.Carrito.Funcion.Formato), @Etiquetas.DeIdioma(Compra.Carrito.Funcion.Idioma)
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    Entrada: @Formato.Moneda(Compra.Carrito.Funcion.PrecioEntrada)
+                    (máximo @CarritoService.MaxButacas por compra)
+                </MudText>
+            </div>
+        }
+
+        @if (_cargando)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error">@_error</MudAlert>
+            <MudButton OnClick="CargarMapa" Color="Color.Primary">Reintentar</MudButton>
+        }
+        else if (_mapa is not null)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudText Typo="Typo.caption">Tamaño</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                               Disabled="@(_tam <= TamMin)" OnClick="@(() => _tam -= 4)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                               Disabled="@(_tam >= TamMax)" OnClick="@(() => _tam += 4)" />
+            </MudStack>
+
+            <div class="d-flex gap-4 flex-wrap">
+                <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-surface)", "var(--mud-palette-lines-inputs)")"></span> Libre</span>
+                <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-surface)", "var(--mud-palette-info)")"></span> Accesible</span>
+                <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-primary)", "var(--mud-palette-primary)")"></span> Elegida</span>
+                <span class="d-flex align-center gap-1"><span style="@Leyenda("var(--mud-palette-action-disabled-background)", "transparent")"></span> Ocupada</span>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <div style="display: inline-block; min-width: 100%;">
+                    <div class="mud-background-gray text-center mb-4 pa-1" style="border-radius: 4px;">
+                        <MudText Typo="Typo.caption">Pantalla</MudText>
+                    </div>
+
+                    @foreach (string fila in _mapa.Filas)
+                    {
+                        <div @key="fila" class="d-flex align-center justify-center mb-1">
+                            <span style="width: 22px; font-weight: 600; flex-shrink: 0;">@fila</span>
+                            <div style="@($"display: grid; grid-template-columns: repeat({_mapa.TotalColumnas}, {_tam}px); gap: 3px;")">
+                                @for (int c = 1; c <= _mapa.TotalColumnas; c++)
+                                {
+                                    if (_porPosicion.TryGetValue((fila, c), out ButacaFuncionResponse? b))
+                                    {
+                                        <button type="button"
+                                                style="@Estilo(b)"
+                                                disabled="@b.Ocupada"
+                                                title="@($"{b.Fila}{b.Numero}")"
+                                                @onclick="() => Alternar(b)">
+                                            @b.Numero
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <div></div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (Compra.Carrito.Butacas.Count > 0)
+            {
+                <MudText Typo="Typo.body2">
+                    Elegidas: @string.Join(", ", Compra.Carrito.Butacas.OrderBy(x => x.Fila).ThenBy(x => x.Numero).Select(x => x.Etiqueta))
+                </MudText>
+            }
+        }
+    </MudStack>
+</MudContainer>
+
+<BarraInferior Titulo="@($"{Compra.Carrito.Butacas.Count} butaca(s)")"
+               Valor="@Formato.Moneda(Compra.TotalEntradas)"
+               TextoBoton="Continuar"
+               Deshabilitado="@(Compra.Carrito.Butacas.Count == 0)"
+               OnClick="Continuar" />
+
+@code {
+    private const int TamMin = 16;
+    private const int TamMax = 40;
+
+    [Parameter] public int FuncionId { get; set; }
+
+    private MapaFuncionResponse? _mapa;
+    private Dictionary<(string Fila, int Columna), ButacaFuncionResponse> _porPosicion = new();
+    private string? _error;
+    private bool _cargando;
+    private int _tam = 26;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Compra.Inicializar();
+
+        // Si se perdió la selección (por ejemplo, se abrió esta pantalla directamente), se vuelve a empezar.
+        if (Compra.Carrito.Funcion?.Id != FuncionId)
+        {
+            Navigation.NavigateTo("/catalogo");
+            return;
+        }
+
+        await CargarMapa();
+    }
+
+    private async Task CargarMapa()
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            MapaFuncionResponse mapa = await CatalogoService.ObtenerMapa(FuncionId);
+
+            _mapa = mapa;
+            _porPosicion = mapa.Butacas.ToDictionary(b => (b.Fila, b.Columna));
+
+            // Si otra persona compró alguna butaca ya elegida, se la saca de la selección.
+            List<int> vendidas = Compra.Carrito.Butacas
+                .Where(s => mapa.Butacas.Any(b => b.Id == s.Id && b.Ocupada))
+                .Select(s => s.Id)
+                .ToList();
+
+            if (vendidas.Count > 0)
+            {
+                await Compra.DescartarButacas(vendidas);
+                Snackbar.Add("Algunas butacas elegidas ya no están disponibles y se quitaron de tu selección.", Severity.Warning);
+            }
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
+        {
+            _error = e is ApiException { Codigo: System.Net.HttpStatusCode.NotFound }
+                ? "Esta función ya no está disponible."
+                : e is InvalidOperationException
+                    ? e.Message
+                    : "No se pudo cargar el mapa de butacas. Verificá la conexión e intentá nuevamente.";
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task Alternar(ButacaFuncionResponse butaca)
+    {
+        if (butaca.Ocupada) return;
+
+        bool ok = await Compra.AlternarButaca(new ButacaCarrito
+        {
+            Id = butaca.Id,
+            Fila = butaca.Fila,
+            Numero = butaca.Numero
+        });
+
+        if (!ok)
+        {
+            Snackbar.Add($"No podés elegir más de {CarritoService.MaxButacas} butacas por compra.", Severity.Info);
+        }
+    }
+
+    private async Task Continuar()
+    {
+        AuthenticationState estado = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        if (estado.User.Identity?.IsAuthenticated != true)
+        {
+            Snackbar.Add("Iniciá sesión para continuar con tu compra. Tu selección se mantiene.", Severity.Info);
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!estado.User.IsInRole("Cliente"))
+        {
+            Snackbar.Add("Solo las cuentas de cliente pueden realizar compras.", Severity.Warning);
+            return;
+        }
+
+        Navigation.NavigateTo("/snacks");
+    }
+
+    private string Estilo(ButacaFuncionResponse b)
+    {
+        string basico = $"width: {_tam}px; height: {_tam}px; border-radius: 6px; font-size: {Math.Max(8, _tam / 3)}px; padding: 0; ";
+
+        if (b.Ocupada)
+        {
+            return basico + "background: var(--mud-palette-action-disabled-background); color: var(--mud-palette-text-disabled); border: 2px solid transparent; cursor: not-allowed;";
+        }
+
+        if (Compra.EstaSeleccionada(b.Id))
+        {
+            return basico + "background: var(--mud-palette-primary); color: var(--mud-palette-primary-text); border: 2px solid var(--mud-palette-primary);";
+        }
+
+        string borde = b.Accesible ? "var(--mud-palette-info)" : "var(--mud-palette-lines-inputs)";
+        return basico + $"background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); border: 2px solid {borde};";
+    }
+
+    private static string Leyenda(string fondo, string borde) =>
+        $"display: inline-block; width: 16px; height: 16px; border-radius: 4px; background: {fondo}; border: 2px solid {borde};";
+}

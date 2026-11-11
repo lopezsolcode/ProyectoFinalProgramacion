@@ -1,126 +1,98 @@
-
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
-using Cinemax.Shared.DTO.Categoria.Response;
-using Cinemax.Shared.DTO.Paginado.Request.Producto;
+using Cinemax.Shared.DTO.Combo.Response;
+using Cinemax.Shared.DTO.Funcion.Response;
 using Cinemax.Shared.DTO.Paginado.Response;
-using Cinemax.Shared.DTO.Producto.Response;
+using Cinemax.Shared.DTO.Pelicula.Response;
+using Cinemax.Shared.DTO.Snack.Response;
 
 namespace Cinemax.Mobile.Services;
 
+// Todo lo que consulta este servicio es público: los visitantes sin sesión también pueden ver la cartelera.
 public class CatalogoService
 {
-    private readonly HttpClient _httpClient;
-    private readonly AutenticacionService _autenticacionService;
+    private const int TamanoPagina = 12;
 
-    public CatalogoService(HttpClient httpClient, AutenticacionService autenticacionService)
+    private readonly HttpClient _httpClient;
+
+    public CatalogoService(HttpClient httpClient)
     {
         _httpClient = httpClient;
-        _autenticacionService = autenticacionService;
     }
 
-    public async Task<PaginadoResponseDto<ProductoCatalogoResponse>>
-        ObtenerCatalogo(ParametroPaginacionProductoRequest parametros)
+    public Task<PaginadoResponseDto<PeliculaCatalogoResponse>> ObtenerCartelera(int pagina, string? buscar) =>
+        Obtener<PaginadoResponseDto<PeliculaCatalogoResponse>>(
+            "api/peliculas/cartelera?" + Query(
+                ("NumeroPagina", Num(pagina)),
+                ("TamanoPagina", Num(TamanoPagina)),
+                ("Buscar", buscar),
+                ("OrdenarPor", "titulo"),
+                ("Direccion", "asc")),
+            "El servidor no devolvió la cartelera.");
+
+    public Task<PeliculaResponse> ObtenerPelicula(int id) =>
+        Obtener<PeliculaResponse>($"api/peliculas/{id}", "El servidor no devolvió los datos de la película.");
+
+    public async Task<List<FuncionCatalogoResponse>> ObtenerFuncionesDelDia(int peliculaId, DateOnly dia)
     {
-        var filtros = new Dictionary<string, string>
-        {
-            ["NumeroPagina"] = (parametros.NumeroPagina ?? 1)
-                .ToString(CultureInfo.InvariantCulture),
+        DateTime inicioLocal = dia.ToDateTime(TimeOnly.MinValue);
+        DateTime desde = ZonaHoraria.AUtc(inicioLocal);
+        DateTime hasta = ZonaHoraria.AUtc(inicioLocal.AddDays(1));
 
-            ["TamanoPagina"] = (parametros.TamanoPagina ?? 20)
-                .ToString(CultureInfo.InvariantCulture)
-        };
+        PaginadoResponseDto<FuncionCatalogoResponse> resultado =
+            await Obtener<PaginadoResponseDto<FuncionCatalogoResponse>>(
+                "api/funciones/disponibles?" + Query(
+                    ("PeliculaId", Num(peliculaId)),
+                    ("Desde", desde.ToString("o", CultureInfo.InvariantCulture)),
+                    ("Hasta", hasta.ToString("o", CultureInfo.InvariantCulture)),
+                    ("NumeroPagina", "1"),
+                    ("TamanoPagina", "50"),
+                    ("OrdenarPor", "fecha"),
+                    ("Direccion", "asc")),
+                "El servidor no devolvió las funciones.");
 
-        if (parametros.CategoriaId.HasValue)
-        {
-            filtros["CategoriaId"] = parametros.CategoriaId.Value
-                .ToString(CultureInfo.InvariantCulture);
-        }
+        return resultado.Datos;
+    }
 
-        if (!string.IsNullOrWhiteSpace(parametros.Buscar))
-        {
-            filtros["Buscar"] = parametros.Buscar;
-        }
+    public Task<MapaFuncionResponse> ObtenerMapa(int funcionId) =>
+        Obtener<MapaFuncionResponse>($"api/funciones/{funcionId}/mapa", "El servidor no devolvió el mapa de butacas.");
 
-        if (!string.IsNullOrWhiteSpace(parametros.OrdenarPor))
-        {
-            filtros["OrdenarPor"] = parametros.OrdenarPor;
-        }
+    public Task<PaginadoResponseDto<SnackCatalogoResponse>> ObtenerSnacks(int pagina, string? buscar) =>
+        Obtener<PaginadoResponseDto<SnackCatalogoResponse>>(
+            "api/snacks/catalogo?" + Query(
+                ("NumeroPagina", Num(pagina)),
+                ("TamanoPagina", Num(TamanoPagina)),
+                ("Buscar", buscar),
+                ("OrdenarPor", "nombre"),
+                ("Direccion", "asc")),
+            "El servidor no devolvió el catálogo de snacks.");
 
-        if (!string.IsNullOrWhiteSpace(parametros.Direccion))
-        {
-            filtros["Direccion"] = parametros.Direccion;
-        }
+    public Task<PaginadoResponseDto<ComboResponse>> ObtenerCombos(int pagina, string? buscar) =>
+        Obtener<PaginadoResponseDto<ComboResponse>>(
+            "api/combos?" + Query(
+                ("NumeroPagina", Num(pagina)),
+                ("TamanoPagina", Num(TamanoPagina)),
+                ("Buscar", buscar),
+                ("OrdenarPor", "nombre"),
+                ("Direccion", "asc")),
+            "El servidor no devolvió los combos.");
 
-        string query = string.Join("&",
-            filtros.Select(f =>
-                $"{WebUtility.UrlEncode(f.Key)}={WebUtility.UrlEncode(f.Value)}"));
-
-        string ruta = $"api/productos/catalogo?{query}";
-
+    private async Task<T> Obtener<T>(string ruta, string mensajeSiVacio)
+    {
         using HttpResponseMessage respuesta = await _httpClient.GetAsync(ruta);
-        
-        respuesta.EnsureSuccessStatusCode();
 
-        var catalogo =
-            await respuesta.Content.ReadFromJsonAsync<
-                PaginadoResponseDto<ProductoCatalogoResponse>>();
+        if (!respuesta.IsSuccessStatusCode)
+            throw await ErrorApi.De(respuesta, "No se pudo consultar el servidor.");
 
-        if (catalogo is null)
-        {
-            throw new InvalidOperationException(
-                "El servidor no devolvió los datos del catálogo.");
-        }
-
-        return catalogo;
-    }
-    
-    public async Task<List<ProductoCarritoResponse>> ObtenerProductosCarrito(List<int> productoIds)
-    {
-        if (productoIds.Count == 0)
-        {
-            return new List<ProductoCarritoResponse>();
-            
-        }
-
-        string query = string.Join("&", productoIds.Distinct().Select(id => $"productosId={id}"));
-
-        string ruta = $"api/productos/carrito?{query}";
-
-        using HttpResponseMessage respuesta = await _autenticacionService .EnviarAutenticado(() => new HttpRequestMessage(HttpMethod.Get, ruta));
-
-        respuesta.EnsureSuccessStatusCode();
-
-        return await respuesta.Content.ReadFromJsonAsync<List<ProductoCarritoResponse>>() ?? throw new InvalidOperationException("No se pudieron obtener los productos.");
+        return await respuesta.Content.ReadFromJsonAsync<T>()
+               ?? throw new InvalidOperationException(mensajeSiVacio);
     }
 
-    public async Task<List<CategoriaResponse>> ObtenerCategorias()
-    {
-        List<CategoriaResponse> categorias = new();
-        int pagina = 1;
-        bool hayMas;
+    private static string Num(int valor) => valor.ToString(CultureInfo.InvariantCulture);
 
-        do
-        {
-            string ruta = $"api/categorias?NumeroPagina={pagina}&TamanoPagina=50&OrdenarPor=nombre&Direccion=asc";
-
-            using HttpResponseMessage respuesta = await _httpClient.GetAsync(ruta);
-            respuesta.EnsureSuccessStatusCode();
-
-            var resultado = await respuesta.Content.ReadFromJsonAsync<PaginadoResponseDto<CategoriaResponse>>();
-
-            if (resultado is null)
-            {
-                throw new InvalidOperationException("No se pudieron obtener las categorías.");
-            }
-
-            categorias.AddRange(resultado.Datos);
-            hayMas = resultado.TienePaginaPosterior;
-            pagina++;
-        }
-        while (hayMas);
-
-        return categorias;
-    }
+    private static string Query(params (string Clave, string? Valor)[] pares) =>
+        string.Join("&", pares
+            .Where(p => !string.IsNullOrWhiteSpace(p.Valor))
+            .Select(p => $"{WebUtility.UrlEncode(p.Clave)}={WebUtility.UrlEncode(p.Valor)}"));
 }

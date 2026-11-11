@@ -79,4 +79,8 @@
       <ProjectReference Include="..\Cinemax.Shared\Cinemax.Shared.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Models\" />
+    </ItemGroup>
+
 </Project>

@@ -60,7 +60,7 @@
                Disabled="_procesando">
         Registrarse
     </MudButton>
-    <MudButton Href="/catalogo"
+    <MudButton Href="/cartelera"
                Variant="Variant.Outlined"
                Color="Color.Secondary"
                FullWidth="true">
@@ -98,7 +98,7 @@
             await AutenticacionService.IniciarSesion(request);
             await EstadoAutenticacion.Actualizar();
 
-            Navigation.NavigateTo("/catalogo");
+            Navigation.NavigateTo("/cartelera");
         }
         catch (InvalidOperationException e)
         {

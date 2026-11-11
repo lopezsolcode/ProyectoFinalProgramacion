@@ -1,19 +1,20 @@
-﻿@page "/pago/{VentaId:int}"
-@using System.Globalization
+@page "/pago/{VentaId:int}"
+@using System.Text.Json
 @using Microsoft.AspNetCore.Authorization
 @using Cinemax.Mobile.Services
 @using Cinemax.Shared.DTO.Venta.Response
 @using Cinemax.Shared.Enums
+@attribute [Authorize(Roles = "Cliente")]
+@implements IDisposable
 @inject ComprasService ComprasService
-@inject CarritoService CarritoService
+@inject CarritoService Compra
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
-@attribute [Authorize]
 
 <PageTitle>Pago</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="py-4">
-    <MudText Typo="Typo.h5" HtmlTag="h1">Pago</MudText>
+    <MudText Typo="Typo.h5" HtmlTag="h1" Class="mb-3">Pago</MudText>
 
     @if (_cargando)
     {
@@ -22,46 +23,66 @@
     else if (!string.IsNullOrWhiteSpace(_error))
     {
         <MudAlert Severity="Severity.Error">@_error</MudAlert>
-        <MudButton Href="/carrito" Class="mt-2">Volver al carrito</MudButton>
+        <MudButton Href="/carrito" Class="mt-2">Volver a mi compra</MudButton>
     }
     else if (_venta is not null)
     {
         @if (_venta.Estado == EstadoVenta.Confirmada)
         {
             <MudAlert Severity="Severity.Success">¡Pago aprobado! Tu compra #@_venta.Id fue confirmada.</MudAlert>
-            <MudButton Href="/catalogo" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4">
-                Seguir comprando
+
+            @Resumen()
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" Class="mt-4"
+                       StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                       Disabled="_procesando"
+                       OnClick="AbrirComprobante">
+                Ver comprobante
+            </MudButton>
+            <MudButton Href="/cartelera" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2">
+                Volver a la cartelera
             </MudButton>
         }
         else if (_venta.Estado != EstadoVenta.Pendiente)
         {
-            <MudAlert Severity="Severity.Warning">Esta compra ya no se puede pagar (estado: @_venta.Estado).</MudAlert>
-            <MudButton Href="/carrito" Class="mt-2">Volver al carrito</MudButton>
+            <MudAlert Severity="Severity.Warning">
+                @if (_rechazado)
+                {
+                    <span>El pago fue rechazado. Liberamos tus butacas; tu compra sigue guardada para que puedas intentarlo de nuevo.</span>
+                }
+                else
+                {
+                    <span>Esta compra ya no se puede pagar (estado: @Etiquetas.DeEstadoVenta(_venta.Estado)). Si venció, tus butacas se liberaron.</span>
+                }
+            </MudAlert>
+
+            <MudButton Href="/carrito" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4">
+                Volver a mi compra
+            </MudButton>
         }
         else
         {
-            @if (_pagoRechazado)
+            @if (Restante is TimeSpan restante)
             {
-                <MudAlert Severity="Severity.Error" Class="mb-3">El pago fue rechazado. Podés intentar de nuevo.</MudAlert>
+                <MudAlert Severity="@(Vencida ? Severity.Error : Severity.Info)" Class="mb-3">
+                    @if (Vencida)
+                    {
+                        <span>La reserva venció. Volvé a tu compra para iniciar una nueva.</span>
+                    }
+                    else
+                    {
+                        <span>Tus butacas están reservadas por @Formato.Cuenta(restante).</span>
+                    }
+                </MudAlert>
             }
 
-            <MudList T="VentaDetalleResponse">
-                @foreach (var d in _venta.Detalles)
-                {
-                    <MudListItem T="VentaDetalleResponse">
-                        <MudText>@d.ProductoNombre</MudText>
-                        <MudText Typo="Typo.body2">
-                            @d.Cantidad x @d.PrecioUnitario.ToString("C2", _cultura) — @d.Subtotal.ToString("C2", _cultura)
-                        </MudText>
-                    </MudListItem>
-                }
-            </MudList>
+            @Resumen()
 
-            <MudText Typo="Typo.h6" Class="my-3">Total: @_venta.Total.ToString("C2", _cultura)</MudText>
+            <MudText Typo="Typo.h6" Class="my-3">Total: @Formato.Moneda(_venta.Total)</MudText>
 
             <MudText Typo="Typo.subtitle1">Método de pago</MudText>
             <MudRadioGroup T="MetodoPago" @bind-Value="_metodo">
-                @foreach (var m in _metodos)
+                @foreach (MetodoPago m in _metodos)
                 {
                     <MudRadio T="MetodoPago" Value="@m">@m</MudRadio>
                 }
@@ -71,9 +92,13 @@
                        Color="Color.Primary"
                        FullWidth="true"
                        Class="mt-4"
-                       Disabled="_procesando"
+                       Disabled="@(_procesando || Vencida)"
                        OnClick="Pagar">
-                @(_procesando ? "Procesando pago..." : $"Pagar {_venta.Total.ToString("C2", _cultura)}")
+                @(_procesando ? "Procesando pago..." : $"Pagar {Formato.Moneda(_venta.Total)}")
+            </MudButton>
+
+            <MudButton FullWidth="true" Class="mt-2" Disabled="_procesando" OnClick="CancelarCompra">
+                Cancelar compra
             </MudButton>
         }
     }
@@ -82,18 +107,59 @@
 @code {
     [Parameter] public int VentaId { get; set; }
 
-    private static readonly CultureInfo _cultura = CultureInfo.GetCultureInfo("es-AR");
-
     private readonly List<MetodoPago> _metodos = Enum.GetValues<MetodoPago>()
         .Where(m => m != MetodoPago.Efectivo)
         .ToList();
 
     private VentaResponse? _venta;
     private MetodoPago _metodo;
+    private System.Threading.Timer? _temporizador;
     private bool _cargando = true;
     private bool _procesando;
-    private bool _pagoRechazado;
+    private bool _rechazado;
     private string? _error;
+
+    private TimeSpan? Restante => _venta?.FechaExpiracion is DateTime vence ? vence - DateTime.UtcNow : null;
+    private bool Vencida => Restante is TimeSpan r && r <= TimeSpan.Zero;
+
+    private RenderFragment Resumen() => __builder =>
+    {
+        if (_venta is null) return;
+
+        <MudPaper Outlined="true" Class="pa-3">
+            @if (_venta.Funcion is not null)
+            {
+                <MudText Typo="Typo.subtitle1">@_venta.Funcion.PeliculaTitulo</MudText>
+                <MudText Typo="Typo.body2">
+                    @Formato.DiaHora(_venta.Funcion.FechaHora), Sala @_venta.Funcion.SalaNumero
+                </MudText>
+            }
+
+            @if (_venta.Entradas.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-2">Entradas</MudText>
+                @foreach (VentaEntradaResponse e in _venta.Entradas)
+                {
+                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2">Butaca @($"{e.Fila}{e.Numero}")</MudText>
+                        <MudText Typo="Typo.body2">@Formato.Moneda(e.Precio)</MudText>
+                    </MudStack>
+                }
+            }
+
+            @if (_venta.Snacks.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-2">Snacks y combos</MudText>
+                @foreach (VentaSnackResponse s in _venta.Snacks)
+                {
+                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2">@s.Cantidad x @s.Nombre</MudText>
+                        <MudText Typo="Typo.body2">@Formato.Moneda(s.Subtotal)</MudText>
+                    </MudStack>
+                }
+            }
+        </MudPaper>
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -101,15 +167,19 @@
 
         try
         {
+            await Compra.Inicializar();
             _venta = await ComprasService.ObtenerMiCompra(VentaId);
+
+            if (_venta.Estado == EstadoVenta.Pendiente)
+            {
+                IniciarCuentaRegresiva();
+            }
         }
-        catch (InvalidOperationException e)
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException or JsonException)
         {
-            _error = e.Message;
-        }
-        catch (HttpRequestException)
-        {
-            _error = "No se pudo conectar con el servidor.";
+            _error = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo conectar con el servidor.";
         }
         finally
         {
@@ -117,15 +187,19 @@
         }
     }
 
+    private void IniciarCuentaRegresiva()
+    {
+        _temporizador?.Dispose();
+        _temporizador = new System.Threading.Timer(
+            _ => _ = InvokeAsync(StateHasChanged), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
     private async Task Pagar()
     {
-        if (_procesando)
-        {
-            return;
-        }
+        if (_procesando || Vencida) return;
 
         _procesando = true;
-        _pagoRechazado = false;
+        _rechazado = false;
 
         try
         {
@@ -133,11 +207,16 @@
 
             if (_venta.Estado == EstadoVenta.Confirmada)
             {
-                await CarritoService.Vaciar();
+                _temporizador?.Dispose();
+
+                // La compra se concretó: recién ahora se vacía el carrito.
+                await Compra.Vaciar();
             }
-            else
+            else if (_venta.Estado != EstadoVenta.Pendiente)
             {
-                _pagoRechazado = true;
+                // Pago rechazado: el backend cancela la compra y libera las butacas. El carrito sigue intacto.
+                _temporizador?.Dispose();
+                _rechazado = true;
             }
         }
         catch (InvalidOperationException e)
@@ -153,4 +232,57 @@
             _procesando = false;
         }
     }
+
+    private async Task CancelarCompra()
+    {
+        if (_procesando) return;
+
+        _procesando = true;
+
+        try
+        {
+            await ComprasService.Cancelar(VentaId);
+            Snackbar.Add("Cancelaste la compra. Tus butacas se liberaron.", Severity.Info);
+            Navigation.NavigateTo("/carrito");
+        }
+        catch (InvalidOperationException e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("No se pudo conectar con el servidor.", Severity.Error);
+        }
+        finally
+        {
+            _procesando = false;
+        }
+    }
+
+    private async Task AbrirComprobante()
+    {
+        _procesando = true;
+
+        try
+        {
+            if (!await ComprasService.AbrirComprobante(VentaId))
+            {
+                Snackbar.Add("No se pudo abrir el PDF. Comprobá que tengas una aplicación compatible.", Severity.Warning);
+            }
+        }
+        catch (InvalidOperationException e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("No se pudo descargar el comprobante. Intentá nuevamente.", Severity.Error);
+        }
+        finally
+        {
+            _procesando = false;
+        }
+    }
+
+    public void Dispose() => _temporizador?.Dispose();
 }
