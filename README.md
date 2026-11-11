@@ -1,14 +1,18 @@
-<<<<<<< HEAD
-# TP6Programacion
 
-Aplicación de gestión y venta de productos desarrollada como trabajo práctico. Incluye un panel web para la administración y las ventas presenciales, una aplicación móvil para las compras online y una API compartida.
+# Proyecto Final : Cinemax.
+
+La solucion ProyectoFinalProgramacion consta de 4 partes:
+- Una API en la que se aloja el backend, y permite la conexión con la base de datos, manejando la lógica del negocio de cine.
+- Una aplicación móvil hybrida que permite a clientes acceder al catálogo de películas disponibles, seleccionar funciones, butacas, snacks, realizar el pago, y obtener el comprobante de la reserva. 
+- Una aplicación web de blazor pensada para empleados y administradores del cine, con metodología POS, que permite la venta en puerta de entradas y refrigerios, y que controla los recursos del cine mediante pantallas CRUD.
+- Un proyecto compartido Shared en el que se alojan los DTO del proyecto y que permite la conexión entre las aplicaciones y el backend.
 
 ## Accesos
 
 | Aplicación | URL |
 | --- | --- |
-| Web | [tpprogramacion.runasp.net](https://tpprogramacion.runasp.net) |
-| Backend | [tpprogramacion-backend.runasp.net](https://tpprogramacion-backend.runasp.net) |
+| Web | [https://cinemaxweb.runasp.net/] |
+| Backend | [https://cinemaxbackend.runasp.net/] |
 
 ## Tecnologías
 
@@ -26,10 +30,10 @@ Aplicación de gestión y venta de productos desarrollada como trabajo práctico
 ## Estructura de la solución
 
 ```text
-TP6Programacion.Backend   API, reglas de negocio, repositorios, base de datos y PDFs.
-TP6Programacion.Web       Panel administrativo y punto de venta presencial.
-TP6Programacion.Mobile    Catálogo, carrito, compras y pagos desde la aplicación móvil.
-TP6Programacion.Shared    DTOs, enums y contratos compartidos.
+Cinemax.Backend   API, reglas de negocio, repositorios, base de datos y PDFs.
+Cinemax.Web       Panel administrativo y punto de venta presencial.
+Cinemax.Mobile    Cartelera, carrito, compras y pagos desde la aplicación móvil.
+Cinemax.Shared    DTOs, enums y contratos compartidos.
 ```
 
 El recorrido habitual de una operación es:
@@ -50,9 +54,9 @@ Los servicios de Web y Mobile se encargan de comunicarse con la API. Los servici
 
 ### Administrador
 
-- Administrar productos, precios e imágenes.
-- Crear, consultar, editar y eliminar categorías.
-- Crear, consultar, editar y dar de baja proveedores.
+- Administrar películas, precios e imágenes.
+- Crear, consultar, editar y eliminar géneros.
+- Crear, consultar, editar y dar de baja actores y directores de películas.
 - Dar de alta cuentas de Cajero o Administrador.
 - Registrar ventas presenciales.
 - Consultar el listado de ventas desde Web y descargar sus comprobantes.
