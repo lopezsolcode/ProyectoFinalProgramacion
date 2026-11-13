@@ -624,7 +624,7 @@ Seleccionar `Cinemax.Mobile` y un emulador Android en Visual Studio. Iniciar el 
 | --- | --- |
 | Debug en Android Emulator | `https://10.0.2.2:7272/` |
 | Debug en otras plataformas | `https://localhost:7272/` |
-| Release | `https://tpprogramacion-backend.runasp.net/` |
+| Release | `https://cinemaxbackend.runasp.net/` |
 
 En Android Emulator, `10.0.2.2` permite acceder al backend del equipo de desarrollo. Para ejecutar en un teléfono físico contra una API local hay que adaptar la dirección a una accesible desde ese dispositivo.
 
