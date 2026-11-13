@@ -13,7 +13,7 @@ public static class ConfiguracionApi
                 ? "https://10.0.2.2:7272/"
                 : "https://localhost:7272/";
 #else
-            return "https://tpprogramacion-backend.runasp.net/";
+            return "https://cinemaxbackend.runasp.net/";
 #endif
         }
     }
