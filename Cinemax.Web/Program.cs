@@ -27,6 +27,8 @@ builder.Services.AddScoped<GeneroService>();
 builder.Services.AddScoped<PersonaService>();
 builder.Services.AddScoped<SalaService>();
 builder.Services.AddScoped<FuncionService>();
+builder.Services.AddScoped<SnackService>();
+builder.Services.AddScoped<ComboService>();
 
 
 await builder.Build().RunAsync();

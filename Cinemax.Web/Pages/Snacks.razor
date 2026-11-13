@@ -1,0 +1,473 @@
+@page "/snacks"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using Cinemax.Shared.DTO.Paginado.Response
+@using Cinemax.Shared.DTO.Snack.Request
+@using Cinemax.Shared.DTO.Snack.Response
+@using Cinemax.Web.Services
+
+@inject SnackService SnackService
+@inject NavigationManager Navigation
+
+<PageTitle>Snacks</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+
+    <MudText Typo="Typo.h4" GutterBottom="true">Administración de snacks</MudText>
+
+    <MudText Typo="Typo.body2" Color="Color.Primary" Class="mb-4">
+        Los snacks se venden solos o como parte de un combo. El stock se controla acá.
+    </MudText>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudGrid Spacing="3">
+
+            <MudItem xs="12" md="4">
+                <MudTextField T="string"
+                              Label="Buscar snack"
+                              Placeholder="Nombre..."
+                              @bind-Value="busqueda"
+                              Immediate="true"
+                              Clearable="true"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="2">
+                <MudSelect T="bool"
+                           Label="Mostrar"
+                           @bind-Value="soloConStock"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="bool" Value="false">Todos</MudSelectItem>
+                    <MudSelectItem T="bool" Value="true">Solo con stock</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string"
+                           Label="Ordenar por"
+                           @bind-Value="ordenarPor"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("id")">ID</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("nombre")">Nombre</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("precio")">Precio</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("stock")">Stock</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="3">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Sort"
+                           FullWidth="true"
+                           Class="mt-2"
+                           OnClick="CambiarDireccion">
+                    @(direccion == "asc" ? "Ascendente" : "Descendente")
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           FullWidth="true"
+                           OnClick="Buscar">
+                    Buscar
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.FilterAltOff"
+                           FullWidth="true"
+                           OnClick="LimpiarFiltros">
+                    Limpiar filtros
+                </MudButton>
+            </MudItem>
+
+        </MudGrid>
+    </MudPaper>
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.body2">
+            @if (resultado is not null)
+            {
+                <span>Total de snacks: @resultado.TotalRegistros</span>
+            }
+        </MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="Crear">
+            Nuevo snack
+        </MudButton>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando snacks...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@error</MudAlert>
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="CargarSnacks">
+            Reintentar
+        </MudButton>
+    }
+    else if (resultado is not null)
+    {
+        <MudTable T="SnackResponse"
+                  Items="@resultado.Datos"
+                  Hover="true"
+                  Striped="true"
+                  Bordered="true"
+                  Dense="true"
+                  Elevation="1">
+
+            <HeaderContent>
+                <MudTh>ID</MudTh>
+                <MudTh>Imagen</MudTh>
+                <MudTh>Nombre</MudTh>
+                <MudTh>Unidad</MudTh>
+                <MudTh>Precio</MudTh>
+                <MudTh>Stock</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="ID">@context.Id</MudTd>
+                <MudTd DataLabel="Imagen">
+                    @if (context.Imagen is not null)
+                    {
+                        <MudImage Src="@context.Imagen.Url"
+                                  Alt="@context.Nombre"
+                                  Width="44"
+                                  Height="44"
+                                  ObjectFit="ObjectFit.Cover"
+                                  Style="border-radius: 6px;" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.ImageNotSupported" />
+                    }
+                </MudTd>
+                <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+                <MudTd DataLabel="Unidad">@context.DescripcionUnidad</MudTd>
+                <MudTd DataLabel="Precio">@PosFormato.Moneda(context.Precio)</MudTd>
+                <MudTd DataLabel="Stock">
+                    <MudText Color="@(context.StockActual() > 0 ? Color.Default : Color.Error)">
+                        @context.StockActual()
+                    </MudText>
+                </MudTd>
+                <MudTd DataLabel="Acciones">
+                    <MudIconButton Icon="@Icons.Material.Filled.Inventory"
+                                   Color="Color.Secondary"
+                                   Title="Ajustar stock"
+                                   OnClick="@(() => SolicitarAjuste(context))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Title="Editar snack"
+                                   OnClick="@(() => Editar(context.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Title="Eliminar snack"
+                                   OnClick="@(() => SolicitarEliminacion(context))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No se encontraron snacks.</MudText>
+            </NoRecordsContent>
+
+        </MudTable>
+
+        <MudPaper Elevation="0" Class="pa-3 mt-3">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaAnterior)"
+                           StartIcon="@Icons.Material.Filled.ChevronLeft"
+                           OnClick="PaginaAnterior">
+                    Anterior
+                </MudButton>
+
+                <MudText Typo="Typo.body2">
+                    Página @resultado.NumeroPagina de @resultado.TotalPaginas
+                </MudText>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaPosterior)"
+                           EndIcon="@Icons.Material.Filled.ChevronRight"
+                           OnClick="PaginaSiguiente">
+                    Siguiente
+                </MudButton>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (snackAAjustar is not null)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mt-4">
+            <MudText Typo="Typo.subtitle1">Ajustar stock de "@snackAAjustar.Nombre"</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">
+                Stock actual: @snackAAjustar.StockActual() @snackAAjustar.DescripcionUnidad.
+                Un número positivo suma unidades y uno negativo las resta.
+            </MudText>
+
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudNumericField T="int"
+                                 Label="Cantidad a sumar o restar"
+                                 @bind-Value="delta"
+                                 Immediate="true"
+                                 Variant="Variant.Outlined"
+                                 Style="max-width: 260px;" />
+
+                <MudText Typo="Typo.body2">
+                    Quedaría en: <b>@(snackAAjustar.StockActual() + delta)</b>
+                </MudText>
+            </MudStack>
+
+            @if (snackAAjustar.StockActual() + delta < 0)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                    El ajuste dejaría el stock en negativo.
+                </MudAlert>
+            }
+
+            <MudStack Row="true" Class="mt-3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@(ajustando || delta == 0 || snackAAjustar.StockActual() + delta < 0)"
+                           OnClick="ConfirmarAjuste">
+                    @(ajustando ? "Aplicando..." : "Aplicar ajuste")
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined" Disabled="@ajustando" OnClick="CancelarAjuste">
+                    Cancelar
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (snackAEliminar is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-4">
+            <MudText Typo="Typo.subtitle1">
+                ¿Querés eliminar el snack "@snackAEliminar.Nombre"?
+            </MudText>
+
+            <MudStack Row="true" Class="mt-3">
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Filled"
+                           Disabled="@eliminando"
+                           OnClick="ConfirmarEliminacion">
+                    Sí, eliminar
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@eliminando"
+                           OnClick="CancelarEliminacion">
+                    Cancelar
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <MudAlert Severity="@tipoMensaje" Class="mt-4" ShowCloseIcon="true">@mensaje</MudAlert>
+    }
+
+</MudContainer>
+
+@code {
+    private PaginadoResponseDto<SnackResponse>? resultado;
+
+    private string? busqueda;
+    private bool soloConStock;
+    private string ordenarPor = "id";
+    private string direccion = "asc";
+
+    private bool cargando;
+    private bool eliminando;
+    private bool ajustando;
+    private string? error;
+    private string? mensaje;
+    private Severity tipoMensaje = Severity.Info;
+
+    private SnackResponse? snackAEliminar;
+    private SnackResponse? snackAAjustar;
+    private int delta;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSnacks();
+    }
+
+    private async Task CargarSnacks()
+    {
+        cargando = true;
+        error = null;
+
+        try
+        {
+            resultado = await SnackService.ObtenerSnacks(
+                resultado?.NumeroPagina ?? 1,
+                10,
+                string.IsNullOrWhiteSpace(busqueda) ? null : busqueda.Trim(),
+                soloConStock,
+                ordenarPor,
+                direccion);
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            error = e is InvalidOperationException
+                ? e.Message
+                : "No se pudieron cargar los snacks. Verificá tu sesión y la conexión con el backend.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task Buscar()
+    {
+        mensaje = null;
+        resultado = PrimeraPagina();
+        await CargarSnacks();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        busqueda = null;
+        soloConStock = false;
+        ordenarPor = "id";
+        direccion = "asc";
+        mensaje = null;
+
+        resultado = PrimeraPagina();
+        await CargarSnacks();
+    }
+
+    private async Task CambiarDireccion()
+    {
+        direccion = direccion == "asc" ? "desc" : "asc";
+        await Buscar();
+    }
+
+    private static PaginadoResponseDto<SnackResponse> PrimeraPagina() =>
+        new(1, 10, 0, 0, false, false, new());
+
+    private async Task PaginaAnterior()
+    {
+        if (resultado is null || !resultado.TienePaginaAnterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina - 1 };
+        await CargarSnacks();
+    }
+
+    private async Task PaginaSiguiente()
+    {
+        if (resultado is null || !resultado.TienePaginaPosterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina + 1 };
+        await CargarSnacks();
+    }
+
+    private void Crear() => Navigation.NavigateTo("/snacks/nuevo");
+
+    private void Editar(int id) => Navigation.NavigateTo($"/snacks/editar/{id}");
+
+    // ---- Ajuste de stock ----
+
+    private void SolicitarAjuste(SnackResponse snack)
+    {
+        snackAAjustar = snack;
+        snackAEliminar = null;
+        delta = 0;
+        mensaje = null;
+    }
+
+    private void CancelarAjuste() => snackAAjustar = null;
+
+    private async Task ConfirmarAjuste()
+    {
+        if (snackAAjustar is null || delta == 0) return;
+
+        ajustando = true;
+        mensaje = null;
+
+        try
+        {
+            SnackResponse actualizado = await SnackService.AjustarStock(
+                snackAAjustar.Id, new AjustarStockRequest(Delta: delta));
+
+            mensaje = $"Stock de '{actualizado.Nombre}': ahora hay {actualizado.StockActual()}.";
+            tipoMensaje = Severity.Success;
+            snackAAjustar = null;
+
+            await CargarSnacks();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            mensaje = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo ajustar el stock. Verificá la conexión y tu sesión.";
+            tipoMensaje = Severity.Error;
+        }
+        finally
+        {
+            ajustando = false;
+        }
+    }
+
+    // ---- Eliminación ----
+
+    private void SolicitarEliminacion(SnackResponse snack)
+    {
+        snackAEliminar = snack;
+        snackAAjustar = null;
+        mensaje = null;
+    }
+
+    private void CancelarEliminacion() => snackAEliminar = null;
+
+    private async Task ConfirmarEliminacion()
+    {
+        if (snackAEliminar is null) return;
+
+        eliminando = true;
+        mensaje = null;
+
+        try
+        {
+            await SnackService.Eliminar(snackAEliminar.Id);
+
+            mensaje = $"El snack '{snackAEliminar.Nombre}' fue eliminado.";
+            tipoMensaje = Severity.Success;
+            snackAEliminar = null;
+
+            await CargarSnacks();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            // Si el backend lo rechaza (por ejemplo, forma parte de un combo) se muestra su mensaje.
+            mensaje = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo eliminar el snack. Verificá la conexión y tu sesión.";
+            tipoMensaje = Severity.Error;
+        }
+        finally
+        {
+            eliminando = false;
+        }
+    }
+}

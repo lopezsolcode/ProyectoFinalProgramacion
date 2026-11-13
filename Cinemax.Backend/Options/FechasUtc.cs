@@ -11,7 +11,6 @@ public static class FechasUtc
 
         return SinSegundos(fecha.ToUniversalTime());
     }
-
     // Para filtros de query string: sin zona se asume UTC.
     public static DateTime? Normalizar(DateTime? fecha)
     {

@@ -1,0 +1,361 @@
+@page "/combos"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using Cinemax.Shared.DTO.Combo.Response
+@using Cinemax.Shared.DTO.Paginado.Response
+@using Cinemax.Web.Services
+
+@inject ComboService ComboService
+@inject NavigationManager Navigation
+
+<PageTitle>Combos</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+
+    <MudText Typo="Typo.h4" GutterBottom="true">Administración de combos</MudText>
+
+    <MudText Typo="Typo.body2" Color="Color.Primary" Class="mb-4">
+        Un combo agrupa varios snacks con un precio propio. Está disponible cuando hay stock de todos sus componentes.
+    </MudText>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudGrid Spacing="3">
+
+            <MudItem xs="12" md="5">
+                <MudTextField T="string"
+                              Label="Buscar combo"
+                              Placeholder="Nombre..."
+                              @bind-Value="busqueda"
+                              Immediate="true"
+                              Clearable="true"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string"
+                           Label="Ordenar por"
+                           @bind-Value="ordenarPor"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("id")">ID</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("nombre")">Nombre</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("precio")">Precio</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Sort"
+                           FullWidth="true"
+                           Class="mt-2"
+                           OnClick="CambiarDireccion">
+                    @(direccion == "asc" ? "Ascendente" : "Descendente")
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           FullWidth="true"
+                           OnClick="Buscar">
+                    Buscar
+                </MudButton>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.FilterAltOff"
+                           FullWidth="true"
+                           OnClick="LimpiarFiltros">
+                    Limpiar filtros
+                </MudButton>
+            </MudItem>
+
+        </MudGrid>
+    </MudPaper>
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.body2">
+            @if (resultado is not null)
+            {
+                <span>Total de combos: @resultado.TotalRegistros</span>
+            }
+        </MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="Crear">
+            Nuevo combo
+        </MudButton>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando combos...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@error</MudAlert>
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="CargarCombos">
+            Reintentar
+        </MudButton>
+    }
+    else if (resultado is not null)
+    {
+        <MudTable T="ComboResponse"
+                  Items="@resultado.Datos"
+                  Hover="true"
+                  Striped="true"
+                  Bordered="true"
+                  Dense="true"
+                  Elevation="1">
+
+            <HeaderContent>
+                <MudTh>ID</MudTh>
+                <MudTh>Imagen</MudTh>
+                <MudTh>Nombre</MudTh>
+                <MudTh>Contenido</MudTh>
+                <MudTh>Precio</MudTh>
+                <MudTh>Disponible</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="ID">@context.Id</MudTd>
+                <MudTd DataLabel="Imagen">
+                    @if (context.Imagen is not null)
+                    {
+                        <MudImage Src="@context.Imagen.Url"
+                                  Alt="@context.Nombre"
+                                  Width="44"
+                                  Height="44"
+                                  ObjectFit="ObjectFit.Cover"
+                                  Style="border-radius: 6px;" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.ImageNotSupported" />
+                    }
+                </MudTd>
+                <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+                <MudTd DataLabel="Contenido">
+                    @string.Join(", ", context.Items.Select(i => $"{i.Cantidad} x {i.SnackNombre}"))
+                </MudTd>
+                <MudTd DataLabel="Precio">@PosFormato.Moneda(context.Precio)</MudTd>
+                <MudTd DataLabel="Disponible">
+                    <MudText Color="@(context.Disponible ? Color.Default : Color.Error)">
+                        @(context.Disponible ? "Sí" : "Sin stock")
+                    </MudText>
+                </MudTd>
+                <MudTd DataLabel="Acciones">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Title="Editar combo"
+                                   OnClick="@(() => Editar(context.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Title="Eliminar combo"
+                                   OnClick="@(() => SolicitarEliminacion(context))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No se encontraron combos.</MudText>
+            </NoRecordsContent>
+
+        </MudTable>
+
+        <MudPaper Elevation="0" Class="pa-3 mt-3">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaAnterior)"
+                           StartIcon="@Icons.Material.Filled.ChevronLeft"
+                           OnClick="PaginaAnterior">
+                    Anterior
+                </MudButton>
+
+                <MudText Typo="Typo.body2">
+                    Página @resultado.NumeroPagina de @resultado.TotalPaginas
+                </MudText>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!resultado.TienePaginaPosterior)"
+                           EndIcon="@Icons.Material.Filled.ChevronRight"
+                           OnClick="PaginaSiguiente">
+                    Siguiente
+                </MudButton>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (comboAEliminar is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-4">
+            <MudText Typo="Typo.subtitle1">
+                ¿Querés eliminar el combo "@comboAEliminar.Nombre"?
+            </MudText>
+
+            <MudStack Row="true" Class="mt-3">
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Filled"
+                           Disabled="@eliminando"
+                           OnClick="ConfirmarEliminacion">
+                    Sí, eliminar
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@eliminando"
+                           OnClick="CancelarEliminacion">
+                    Cancelar
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <MudAlert Severity="@tipoMensaje" Class="mt-4" ShowCloseIcon="true">@mensaje</MudAlert>
+    }
+
+</MudContainer>
+
+@code {
+    private PaginadoResponseDto<ComboResponse>? resultado;
+
+    private string? busqueda;
+    private string ordenarPor = "id";
+    private string direccion = "asc";
+
+    private bool cargando;
+    private bool eliminando;
+    private string? error;
+    private string? mensaje;
+    private Severity tipoMensaje = Severity.Info;
+
+    private ComboResponse? comboAEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCombos();
+    }
+
+    private async Task CargarCombos()
+    {
+        cargando = true;
+        error = null;
+
+        try
+        {
+            resultado = await ComboService.ObtenerCombos(
+                resultado?.NumeroPagina ?? 1,
+                10,
+                string.IsNullOrWhiteSpace(busqueda) ? null : busqueda.Trim(),
+                ordenarPor,
+                direccion);
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            error = e is InvalidOperationException
+                ? e.Message
+                : "No se pudieron cargar los combos. Verificá tu sesión y la conexión con el backend.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task Buscar()
+    {
+        mensaje = null;
+        resultado = PrimeraPagina();
+        await CargarCombos();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        busqueda = null;
+        ordenarPor = "id";
+        direccion = "asc";
+        mensaje = null;
+
+        resultado = PrimeraPagina();
+        await CargarCombos();
+    }
+
+    private async Task CambiarDireccion()
+    {
+        direccion = direccion == "asc" ? "desc" : "asc";
+        await Buscar();
+    }
+
+    private static PaginadoResponseDto<ComboResponse> PrimeraPagina() =>
+        new(1, 10, 0, 0, false, false, new());
+
+    private async Task PaginaAnterior()
+    {
+        if (resultado is null || !resultado.TienePaginaAnterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina - 1 };
+        await CargarCombos();
+    }
+
+    private async Task PaginaSiguiente()
+    {
+        if (resultado is null || !resultado.TienePaginaPosterior) return;
+
+        resultado = resultado with { NumeroPagina = resultado.NumeroPagina + 1 };
+        await CargarCombos();
+    }
+
+    private void Crear() => Navigation.NavigateTo("/combos/nuevo");
+
+    private void Editar(int id) => Navigation.NavigateTo($"/combos/editar/{id}");
+
+    private void SolicitarEliminacion(ComboResponse combo)
+    {
+        comboAEliminar = combo;
+        mensaje = null;
+    }
+
+    private void CancelarEliminacion() => comboAEliminar = null;
+
+    private async Task ConfirmarEliminacion()
+    {
+        if (comboAEliminar is null) return;
+
+        eliminando = true;
+        mensaje = null;
+
+        try
+        {
+            await ComboService.Eliminar(comboAEliminar.Id);
+
+            mensaje = $"El combo '{comboAEliminar.Nombre}' fue eliminado.";
+            tipoMensaje = Severity.Success;
+            comboAEliminar = null;
+
+            await CargarCombos();
+        }
+        catch (Exception e) when (e is HttpRequestException or InvalidOperationException)
+        {
+            mensaje = e is InvalidOperationException
+                ? e.Message
+                : "No se pudo eliminar el combo. Verificá la conexión y tu sesión.";
+            tipoMensaje = Severity.Error;
+        }
+        finally
+        {
+            eliminando = false;
+        }
+    }
+}

@@ -1,0 +1,257 @@
+@page "/snacks/nuevo"
+@page "/snacks/editar/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using System.Text.Json
+@using Cinemax.Shared.DTO.Comun
+@using Cinemax.Shared.DTO.Snack.Request
+@using Cinemax.Shared.DTO.Snack.Response
+@using Cinemax.Web.Components
+@using Cinemax.Web.Services
+
+@inject SnackService SnackService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@Titulo</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-6 mb-6">
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Color="Color.Default"
+                       Title="Volver al listado"
+                       OnClick="Volver" />
+
+        <MudText Typo="Typo.h4">@Titulo</MudText>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando datos...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorCarga))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorCarga</MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Volver">Volver al listado</MudButton>
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="pa-5">
+            <MudStack Spacing="3">
+
+                <MudTextField T="string"
+                              Label="Nombre"
+                              @bind-Value="nombre"
+                              MaxLength="100"
+                              Variant="Variant.Outlined" />
+
+                <MudTextField T="string"
+                              Label="Unidad de venta"
+                              HelperText="Cómo se entrega: balde, vaso, botella, porción..."
+                              @bind-Value="unidad"
+                              MaxLength="50"
+                              Variant="Variant.Outlined" />
+
+                <MudNumericField T="decimal"
+                                 Label="Precio"
+                                 @bind-Value="precio"
+                                 Min="0"
+                                 Format="N2"
+                                 Variant="Variant.Outlined" />
+
+                @if (Id.HasValue)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        Stock actual: @stockActual. Para cambiarlo usá "Ajustar stock" en el listado de snacks.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudNumericField T="int"
+                                     Label="Stock inicial"
+                                     @bind-Value="stockInicial"
+                                     Min="0"
+                                     Variant="Variant.Outlined" />
+                }
+
+                <MudDivider Class="my-1" />
+
+                @if (!_idActual.HasValue)
+                {
+                    <MudText Typo="Typo.caption">La imagen se sube después de crear el snack.</MudText>
+                }
+
+                <SelectorImagen Titulo="Imagen"
+                                Actual="imagenActual"
+                                @bind-Archivo="archivo"
+                                Ancho="160"
+                                Alto="160" />
+
+                @if (!string.IsNullOrWhiteSpace(errorValidacion))
+                {
+                    <MudAlert Severity="Severity.Warning">@errorValidacion</MudAlert>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(error))
+                {
+                    <MudAlert Severity="Severity.Error">@error</MudAlert>
+                }
+
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+                    <MudButton Variant="Variant.Outlined" Disabled="@guardando" OnClick="Volver">
+                        Cancelar
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               Disabled="@guardando"
+                               OnClick="Guardar">
+                        @(guardando
+                            ? "Guardando..."
+                            : _idActual.HasValue ? "Guardar cambios" : "Crear snack")
+                    </MudButton>
+                </MudStack>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    // Id del snack que se está editando. En una creación se completa apenas el backend lo crea,
+    // así un reintento (por ejemplo, si falló la subida de la imagen) actualiza en vez de duplicar.
+    private int? _idActual;
+
+    private string Titulo => Id.HasValue ? "Modificar snack" : "Nuevo snack";
+
+    private string nombre = string.Empty;
+    private string unidad = string.Empty;
+    private decimal precio;
+    private int stockInicial;
+    private int stockActual;
+    private ImagenResponse? imagenActual;
+    private IBrowserFile? archivo;
+
+    private bool cargando = true;
+    private bool guardando;
+    private string? errorCarga;
+    private string? error;
+    private string? errorValidacion;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _idActual = Id;
+
+        try
+        {
+            if (Id.HasValue)
+            {
+                SnackResponse snack = await SnackService.ObtenerSnack(Id.Value);
+
+                nombre = snack.Nombre;
+                unidad = snack.DescripcionUnidad;
+                precio = snack.Precio;
+                stockActual = snack.StockActual();
+                imagenActual = snack.Imagen;
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            errorCarga = Mensaje(e, "No se pudo cargar el snack. Verificá tu sesión y la conexión con el backend.");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private string? Validar()
+    {
+        if (string.IsNullOrWhiteSpace(nombre)) return "El nombre es obligatorio.";
+        if (nombre.Trim().Length > 100) return "El nombre no puede superar 100 caracteres.";
+        if (string.IsNullOrWhiteSpace(unidad)) return "La unidad de venta es obligatoria.";
+        if (unidad.Trim().Length > 50) return "La unidad de venta no puede superar 50 caracteres.";
+        if (precio <= 0) return "El precio debe ser mayor a cero.";
+        if (!Id.HasValue && !_idActual.HasValue && stockInicial < 0) return "El stock inicial no puede ser negativo.";
+        return null;
+    }
+
+    private async Task Guardar()
+    {
+        if (guardando) return;
+
+        error = null;
+        errorValidacion = Validar();
+
+        if (errorValidacion is not null) return;
+
+        guardando = true;
+
+        try
+        {
+            if (_idActual.HasValue)
+            {
+                await SnackService.Actualizar(_idActual.Value, new ActualizarSnackRequest(
+                    Nombre: nombre.Trim(),
+                    Precio: precio,
+                    DescripcionUnidad: unidad.Trim()));
+            }
+            else
+            {
+                SnackResponse creado = await SnackService.Crear(new CrearSnackRequest(
+                    Nombre: nombre.Trim(),
+                    Precio: precio,
+                    DescripcionUnidad: unidad.Trim(),
+                    StockInicial: stockInicial));
+
+                _idActual = creado.Id;
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            error = Mensaje(e, "No se pudo guardar el snack. Verificá los datos y tu sesión.");
+            guardando = false;
+            return;
+        }
+
+        // El snack ya está guardado: ahora se sube la imagen elegida.
+        if (archivo is not null)
+        {
+            try
+            {
+                imagenActual = await SnackService.SubirImagen(_idActual!.Value, archivo);
+                archivo = null;
+            }
+            catch (Exception e) when (EsErrorEsperado(e))
+            {
+                error = $"El snack se guardó, pero no se pudo subir la imagen ({Mensaje(e, "error de conexión")}). " +
+                        "Volvé a elegir el archivo y guardá de nuevo.";
+                guardando = false;
+                return;
+            }
+        }
+
+        guardando = false;
+
+        Snackbar.Add(Id.HasValue ? "Snack modificado." : "Snack guardado.", Severity.Success);
+        Navigation.NavigateTo("/snacks");
+    }
+
+    private static bool EsErrorEsperado(Exception e) =>
+        e is HttpRequestException or InvalidOperationException or JsonException;
+
+    private static string Mensaje(Exception e, string porDefecto) => e switch
+    {
+        InvalidOperationException => e.Message,
+        JsonException => "El servidor devolvió una respuesta inválida.",
+        _ => porDefecto
+    };
+
+    private void Volver() => Navigation.NavigateTo("/snacks");
+}

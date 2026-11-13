@@ -1,0 +1,324 @@
+@page "/combos/nuevo"
+@page "/combos/editar/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@using System.Text.Json
+@using Cinemax.Shared.DTO.Combo.Request
+@using Cinemax.Shared.DTO.Combo.Response
+@using Cinemax.Shared.DTO.Comun
+@using Cinemax.Shared.DTO.Snack.Response
+@using Cinemax.Web.Components
+@using Cinemax.Web.Services
+
+@inject ComboService ComboService
+@inject SnackService SnackService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@Titulo</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-6 mb-6">
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       Color="Color.Default"
+                       Title="Volver al listado"
+                       OnClick="Volver" />
+
+        <MudText Typo="Typo.h4">@Titulo</MudText>
+    </MudStack>
+
+    @if (cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-2">Cargando datos...</MudText>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorCarga))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorCarga</MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Volver">Volver al listado</MudButton>
+    }
+    else if (snacks.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            Para armar un combo necesitás tener snacks cargados. Creá primero los snacks.
+        </MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/snacks/nuevo">Crear un snack</MudButton>
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="pa-5">
+            <MudStack Spacing="3">
+
+                <MudTextField T="string"
+                              Label="Nombre"
+                              @bind-Value="nombre"
+                              MaxLength="100"
+                              Variant="Variant.Outlined" />
+
+                <MudNumericField T="decimal"
+                                 Label="Precio del combo"
+                                 HelperText="Es un precio propio: no es la suma de sus componentes."
+                                 @bind-Value="precio"
+                                 Min="0"
+                                 Format="N2"
+                                 Variant="Variant.Outlined" />
+
+                <MudDivider Class="my-1" />
+
+                <MudText Typo="Typo.subtitle1">Componentes</MudText>
+
+                @foreach (Componente c in componentes)
+                {
+                    <MudStack @key="c" Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudSelect T="int?"
+                                   Label="Snack"
+                                   @bind-Value="c.SnackId"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Style="flex: 1;">
+                            @foreach (SnackResponse s in snacks)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)s.Id)">@s.Nombre</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudNumericField T="int"
+                                         Label="Cantidad"
+                                         @bind-Value="c.Cantidad"
+                                         Min="1"
+                                         Max="50"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense"
+                                         Style="width: 120px;" />
+
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       Title="Quitar componente"
+                                       OnClick="@(() => QuitarComponente(c))" />
+                    </MudStack>
+                }
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AgregarComponente"
+                           Style="align-self: flex-start;">
+                    Agregar componente
+                </MudButton>
+
+                @if (PrecioSeparado > 0)
+                {
+                    <MudText Typo="Typo.caption">
+                        Vendidos por separado, estos componentes suman @PosFormato.Moneda(PrecioSeparado).
+                    </MudText>
+                }
+
+                <MudDivider Class="my-1" />
+
+                @if (!_idActual.HasValue)
+                {
+                    <MudText Typo="Typo.caption">La imagen se sube después de crear el combo.</MudText>
+                }
+
+                <SelectorImagen Titulo="Imagen"
+                                Actual="imagenActual"
+                                @bind-Archivo="archivo"
+                                Ancho="160"
+                                Alto="160" />
+
+                @if (!string.IsNullOrWhiteSpace(errorValidacion))
+                {
+                    <MudAlert Severity="Severity.Warning">@errorValidacion</MudAlert>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(error))
+                {
+                    <MudAlert Severity="Severity.Error">@error</MudAlert>
+                }
+
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+                    <MudButton Variant="Variant.Outlined" Disabled="@guardando" OnClick="Volver">
+                        Cancelar
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               Disabled="@guardando"
+                               OnClick="Guardar">
+                        @(guardando
+                            ? "Guardando..."
+                            : _idActual.HasValue ? "Guardar cambios" : "Crear combo")
+                    </MudButton>
+                </MudStack>
+
+            </MudStack>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    private class Componente
+    {
+        public int? SnackId { get; set; }
+        public int Cantidad { get; set; } = 1;
+    }
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    // Id del combo que se está editando. En una creación se completa apenas el backend lo crea,
+    // así un reintento (por ejemplo, si falló la subida de la imagen) actualiza en vez de duplicar.
+    private int? _idActual;
+
+    private string Titulo => Id.HasValue ? "Modificar combo" : "Nuevo combo";
+
+    private List<SnackResponse> snacks = new();
+    private readonly List<Componente> componentes = new();
+
+    private string nombre = string.Empty;
+    private decimal precio;
+    private ImagenResponse? imagenActual;
+    private IBrowserFile? archivo;
+
+    private bool cargando = true;
+    private bool guardando;
+    private string? errorCarga;
+    private string? error;
+    private string? errorValidacion;
+
+    // Lo que costarían los componentes si se vendieran sueltos: una guía para fijar el precio del combo.
+    private decimal PrecioSeparado => componentes
+        .Where(c => c.SnackId is not null)
+        .Sum(c => (snacks.FirstOrDefault(s => s.Id == c.SnackId)?.Precio ?? 0) * c.Cantidad);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _idActual = Id;
+
+        try
+        {
+            snacks = await SnackService.ObtenerTodosParaSelector();
+
+            if (Id.HasValue)
+            {
+                ComboResponse combo = await ComboService.ObtenerCombo(Id.Value);
+
+                nombre = combo.Nombre;
+                precio = combo.Precio;
+                imagenActual = combo.Imagen;
+
+                foreach (ComboItemResponse item in combo.Items)
+                {
+                    componentes.Add(new Componente { SnackId = item.SnackId, Cantidad = item.Cantidad });
+                }
+            }
+            else
+            {
+                componentes.Add(new Componente());
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            errorCarga = Mensaje(e, "No se pudieron cargar los datos. Verificá tu sesión y la conexión con el backend.");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void AgregarComponente() => componentes.Add(new Componente());
+
+    private void QuitarComponente(Componente componente) => componentes.Remove(componente);
+
+    private string? Validar()
+    {
+        if (string.IsNullOrWhiteSpace(nombre)) return "El nombre es obligatorio.";
+        if (nombre.Trim().Length > 100) return "El nombre no puede superar 100 caracteres.";
+        if (precio <= 0) return "El precio debe ser mayor a cero.";
+        if (componentes.Count == 0) return "El combo debe tener al menos un componente.";
+        if (componentes.Any(c => c.SnackId is null)) return "Elegí un snack en cada componente.";
+        if (componentes.Any(c => c.Cantidad < 1 || c.Cantidad > 50)) return "La cantidad de cada componente debe estar entre 1 y 50.";
+        if (componentes.Select(c => c.SnackId).Distinct().Count() != componentes.Count)
+            return "Un snack no puede repetirse dentro del combo.";
+        return null;
+    }
+
+    private async Task Guardar()
+    {
+        if (guardando) return;
+
+        error = null;
+        errorValidacion = Validar();
+
+        if (errorValidacion is not null) return;
+
+        guardando = true;
+
+        try
+        {
+            List<ComboItemRequest> items = componentes
+                .Select(c => new ComboItemRequest(SnackId: c.SnackId!.Value, Cantidad: c.Cantidad))
+                .ToList();
+
+            if (_idActual.HasValue)
+            {
+                await ComboService.Actualizar(_idActual.Value, new ActualizarComboRequest(
+                    Nombre: nombre.Trim(),
+                    Precio: precio,
+                    Items: items));
+            }
+            else
+            {
+                ComboResponse creado = await ComboService.Crear(new CrearComboRequest(
+                    Nombre: nombre.Trim(),
+                    Precio: precio,
+                    Items: items));
+
+                _idActual = creado.Id;
+            }
+        }
+        catch (Exception e) when (EsErrorEsperado(e))
+        {
+            error = Mensaje(e, "No se pudo guardar el combo. Verificá los datos y tu sesión.");
+            guardando = false;
+            return;
+        }
+
+        // El combo ya está guardado: ahora se sube la imagen elegida.
+        if (archivo is not null)
+        {
+            try
+            {
+                imagenActual = await ComboService.SubirImagen(_idActual!.Value, archivo);
+                archivo = null;
+            }
+            catch (Exception e) when (EsErrorEsperado(e))
+            {
+                error = $"El combo se guardó, pero no se pudo subir la imagen ({Mensaje(e, "error de conexión")}). " +
+                        "Volvé a elegir el archivo y guardá de nuevo.";
+                guardando = false;
+                return;
+            }
+        }
+
+        guardando = false;
+
+        Snackbar.Add(Id.HasValue ? "Combo modificado." : "Combo guardado.", Severity.Success);
+        Navigation.NavigateTo("/combos");
+    }
+
+    private static bool EsErrorEsperado(Exception e) =>
+        e is HttpRequestException or InvalidOperationException or JsonException;
+
+    private static string Mensaje(Exception e, string porDefecto) => e switch
+    {
+        InvalidOperationException => e.Message,
+        JsonException => "El servidor devolvió una respuesta inválida.",
+        _ => porDefecto
+    };
+
+    private void Volver() => Navigation.NavigateTo("/combos");
+}
